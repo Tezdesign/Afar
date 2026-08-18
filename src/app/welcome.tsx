@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,6 +17,7 @@ const SCRIM_COLORS = [
 const SCRIM_LOCATIONS = [0, 0.42, 0.68, 1] as const;
 
 export default function Welcome() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   // Apple / Google / Email sign-in wire up once Clerk is added — see
@@ -83,6 +85,7 @@ export default function Welcome() {
 
           <Pressable
             accessibilityRole="button"
+            onPress={() => router.push("/email")}
             className="flex-row items-center justify-center gap-sm bg-cobalt-500 rounded-full py-md"
             style={({ pressed }) => pressed && { opacity: 0.85 }}
           >
