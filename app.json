@@ -8,7 +8,8 @@
     "scheme": "skyscanner",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.tez9870.Skyscanner"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,9 +29,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/afar-icon.png",
+          "imageWidth": 100
         }
       ]
     ],
