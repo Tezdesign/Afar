@@ -33,7 +33,9 @@
           "image": "./assets/images/afar-icon.png",
           "imageWidth": 100
         }
-      ]
+      ],
+      "expo-secure-store",
+      "@clerk/expo"
     ],
     "experiments": {
       "typedRoutes": true,

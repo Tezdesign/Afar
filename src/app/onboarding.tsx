@@ -1,13 +1,14 @@
+import { useAuth } from "@clerk/expo";
+import { useSSO } from "@clerk/expo/experimental";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { images } from "@/constants/images";
 
-// Scrim stops: transparent at top, near-black by the bottom so the
-// headline and buttons stay readable over any photo.
 const SCRIM_COLORS = [
   "rgba(13,20,38,0)",
   "rgba(10,16,30,0.15)",
@@ -16,12 +17,30 @@ const SCRIM_COLORS = [
 ] as const;
 const SCRIM_LOCATIONS = [0, 0.42, 0.68, 1] as const;
 
-export default function Welcome() {
+export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { startSSOFlow } = useSSO();
+  const [ssoPending, setSsoPending] = useState<"apple" | "google" | null>(null);
 
-  // Apple / Google / Email sign-in wire up once Clerk is added — see
-  // AGENTS.md's Clerk Rules. These are visual-only for now.
+  if (!isLoaded) return null;
+  if (isSignedIn) return <Redirect href="/" />;
+
+  const handleSSO = async (strategy: "oauth_apple" | "oauth_google") => {
+    setSsoPending(strategy === "oauth_apple" ? "apple" : "google");
+    try {
+      const { createdSessionId } = await startSSOFlow({ strategy });
+      if (createdSessionId) {
+        router.replace("/");
+      }
+      // No createdSessionId means the user cancelled — do nothing.
+    } catch (err) {
+      console.error("SSO sign-in error:", JSON.stringify(err, null, 2));
+    } finally {
+      setSsoPending(null);
+    }
+  };
 
   return (
     <View className="flex-1">
@@ -44,9 +63,6 @@ export default function Welcome() {
         className="flex-1 justify-end px-lg"
         style={{ paddingBottom: insets.bottom + 24 }}
       >
-        {/* className doesn't reach Image's width/height (no NativeWind
-            interop for that prop on this component) — sized via style
-            per AGENTS.md's style-exception rule. */}
         <Image
           source={images.afarIcon}
           resizeMode="contain"
@@ -63,6 +79,8 @@ export default function Welcome() {
         <View className="gap-sm">
           <Pressable
             accessibilityRole="button"
+            disabled={ssoPending !== null}
+            onPress={() => handleSSO("oauth_apple")}
             className="flex-row items-center justify-center gap-sm bg-black rounded-full py-md"
             style={({ pressed }) => pressed && { opacity: 0.85 }}
           >
@@ -74,7 +92,9 @@ export default function Welcome() {
 
           <Pressable
             accessibilityRole="button"
-            className="flex-row items-center justify-center gap-sm bg-white border border-gray-200 rounded-full py-md"
+            disabled={ssoPending !== null}
+            onPress={() => handleSSO("oauth_google")}
+            className="flex-row items-center justify-center gap-sm bg-white border border-line rounded-full py-md"
             style={({ pressed }) => pressed && { opacity: 0.85 }}
           >
             <Ionicons name="logo-google" size={18} color="#1F1F1F" />

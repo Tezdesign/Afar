@@ -1,3 +1,4 @@
+import { useSignIn, useSignUp } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -11,16 +12,64 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { clerkErrorCode, clerkErrorMessage } from "@/lib/clerk";
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function EmailSignIn() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
   const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isValid = EMAIL_PATTERN.test(email.trim());
 
-  // Clerk email sign-in wires up once Clerk is added — see AGENTS.md's
-  // Clerk Rules. This screen is visual-only for now.
+  const handleContinue = async () => {
+    const emailAddress = email.trim();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      // Combined sign-in-or-up: try signing in first — sendCode creates
+      // the sign-in attempt and sends the code in one call.
+      const { error } = await signIn.emailCode.sendCode({ emailAddress });
+
+      if (!error) {
+        router.push({
+          pathname: "/verify",
+          params: { email: emailAddress, mode: "sign-in" },
+        });
+        return;
+      }
+
+      if (clerkErrorCode(error) !== "form_identifier_not_found") {
+        setErrorMessage(clerkErrorMessage(error));
+        return;
+      }
+
+      // No account with this email — switch to sign-up.
+      const { error: signUpError } = await signUp.create({ emailAddress });
+      if (signUpError) {
+        setErrorMessage(clerkErrorMessage(signUpError));
+        return;
+      }
+
+      const { error: sendCodeError } = await signUp.verifications.sendEmailCode();
+      if (sendCodeError) {
+        setErrorMessage(clerkErrorMessage(sendCodeError));
+        return;
+      }
+
+      router.push({
+        pathname: "/verify",
+        params: { email: emailAddress, mode: "sign-up" },
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -53,25 +102,36 @@ export default function EmailSignIn() {
 
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrorMessage(null);
+            }}
             placeholder="you@example.com"
             placeholderTextColor="#8A8D9A"
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             autoFocus
-            className="border border-gray-200 rounded-lg px-md py-md text-body text-ink"
+            className="border border-line rounded-lg px-md py-md text-body text-ink"
           />
+
+          {errorMessage ? (
+            <Text className="text-[13px] text-red-500 mt-sm">
+              {errorMessage}
+            </Text>
+          ) : null}
         </View>
 
         <View className="flex-1" />
 
+        {/* Bot-protection mount point — required on any screen that can
+            trigger signUp.create(). */}
+        <View nativeID="clerk-captcha" />
+
         <Pressable
           accessibilityRole="button"
-          disabled={!isValid}
-          onPress={() =>
-            router.push({ pathname: "/verify", params: { email } })
-          }
+          disabled={!isValid || isSubmitting}
+          onPress={handleContinue}
           className={`items-center justify-center rounded-full py-md ${
             isValid ? "bg-cobalt-500" : "bg-cobalt-100"
           }`}
@@ -82,7 +142,7 @@ export default function EmailSignIn() {
               isValid ? "text-white" : "text-cobalt-300"
             }`}
           >
-            Continue
+            {isSubmitting ? "Please wait…" : "Continue"}
           </Text>
         </Pressable>
 

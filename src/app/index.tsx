@@ -1,30 +1,53 @@
-import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { Image, View } from "react-native";
+import { useAuth, useUser } from "@clerk/expo";
+import { Redirect } from "expo-router";
+import { Image, Pressable, Text, View } from "react-native";
 
 import { images } from "@/constants/images";
 
-export default function Splash() {
-  const router = useRouter();
+export default function Index() {
+  const { isLoaded, isSignedIn, signOut } = useAuth();
+  const { user } = useUser();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace("/welcome");
-    }, 1400);
+  // Splash — shown while Clerk restores the session from the token cache.
+  if (!isLoaded) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <Image
+          source={images.afarLogo}
+          resizeMode="contain"
+          style={{ width: 220, height: 79 }}
+        />
+      </View>
+    );
+  }
 
-    return () => clearTimeout(timer);
-  }, [router]);
+  if (!isSignedIn) {
+    return <Redirect href="/onboarding" />;
+  }
 
+  // Minimal home stub — proves sign-in works and survives a restart.
+  // The real home screen is a separate, later task.
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      {/* className doesn't reach Image's width/height (no NativeWind
-          interop for that prop on this component) — sized via style
-          per AGENTS.md's style-exception rule. */}
+    <View className="flex-1 items-center justify-center bg-white px-lg gap-md">
       <Image
-        source={images.afarLogo}
+        source={images.afarIcon}
         resizeMode="contain"
-        style={{ width: 220, height: 79 }}
+        style={{ width: 56, height: 56 }}
       />
+      <Text className="text-title text-ink text-center">
+        Signed in as{"\n"}
+        {user?.primaryEmailAddress?.emailAddress ?? "your account"}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => signOut()}
+        className="bg-cobalt-500 rounded-full py-md px-lg mt-md"
+        style={({ pressed }) => pressed && { opacity: 0.85 }}
+      >
+        <Text className="text-[14px] font-jakarta-bold text-white">
+          Sign out
+        </Text>
+      </Pressable>
     </View>
   );
 }

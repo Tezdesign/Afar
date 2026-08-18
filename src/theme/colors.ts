@@ -1,6 +1,7 @@
 export const colors = {
   ink: "#17181F",
   cloud: "#F1F4F9",
+  line: "#E5E7EB",
   go: "#1C9A6C",
   cobalt: {
     50: "#EEF2FE",
