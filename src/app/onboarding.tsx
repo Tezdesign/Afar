@@ -118,6 +118,7 @@ export default function Onboarding() {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => router.push("/search")}
           className="items-center mt-md"
           style={({ pressed }) => pressed && { opacity: 0.6 }}
         >

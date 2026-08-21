@@ -1,8 +1,8 @@
-import { useSignIn, useSignUp } from "@clerk/expo";
+import { useAuth, useSignIn, useSignUp } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { clerkErrorMessage } from "@/lib/clerk";
@@ -19,6 +19,7 @@ export default function VerifyCode() {
   }>();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
+  const { isSignedIn } = useAuth();
   const inputRef = useRef<TextInput>(null);
 
   const [code, setCode] = useState("");
@@ -28,23 +29,26 @@ export default function VerifyCode() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isComplete = code.length === CODE_LENGTH;
 
+  // Tracks the exact code string already submitted, so a successful call
+  // that doesn't fully complete the sign-up/sign-in (e.g. the instance
+  // still needs a password) can't be resubmitted in a loop — relying on
+  // isVerifying/isVerified alone isn't enough, since neither flips true
+  // in that case.
+  const attemptedCodeRef = useRef<string | null>(null);
+
   useEffect(() => {
-    // errorMessage is included so a failed attempt doesn't immediately
-    // retry itself — isVerifying resets to false on failure, but the same
-    // (already-wrong) code is still sitting in `code`/isComplete, which
-    // would otherwise re-fire this effect in a tight loop.
-    if (!isComplete || isVerifying || isVerified || errorMessage) return;
+    if (!isComplete || isVerifying || isVerified) return;
+    if (attemptedCodeRef.current === code) return;
 
     const verify = async () => {
+      attemptedCodeRef.current = code;
       setIsVerifying(true);
       setErrorMessage(null);
 
       try {
-        // TODO: once the real home screen exists, navigate there instead
-        // (router.replace("/")) — for now just confirm the session is live.
         const navigate = async ({ session }: { session: { currentTask?: unknown } }) => {
           if (session?.currentTask) return;
-          Alert.alert("You're all set!", "Your account is verified.");
+          router.replace("/");
         };
 
         if (mode === "sign-up") {
@@ -56,6 +60,10 @@ export default function VerifyCode() {
           if (signUp.status === "complete") {
             setIsVerified(true);
             await signUp.finalize({ navigate });
+          } else {
+            setErrorMessage(
+              `Email verified, but sign-up still needs: ${signUp.missingFields.join(", ") || "additional info"}.`,
+            );
           }
         } else {
           const { error } = await signIn.emailCode.verifyCode({ code });
@@ -66,6 +74,8 @@ export default function VerifyCode() {
           if (signIn.status === "complete") {
             setIsVerified(true);
             await signIn.finalize({ navigate });
+          } else {
+            setErrorMessage(`Almost there — this account needs an extra step (${signIn.status}).`);
           }
         }
       } finally {
@@ -74,10 +84,23 @@ export default function VerifyCode() {
     };
 
     verify();
-  }, [isComplete, isVerifying, isVerified, errorMessage, code, mode, signIn, signUp, router]);
+  }, [isComplete, isVerifying, isVerified, code, mode, signIn, signUp, router]);
+
+  // A previous attempt may have actually completed server-side (e.g. it
+  // crashed after finalize() created the session but before navigating
+  // away) — in that case the underlying signIn/signUp resource is stuck
+  // "complete" and no code will ever verify again. If we're already
+  // signed in, there's nothing left to do here.
+  if (isSignedIn) {
+    return <Redirect href="/" />;
+  }
 
   const handleResend = async () => {
     if (secondsLeft > 0) return;
+    attemptedCodeRef.current = null;
+    setCode("");
+    setErrorMessage(null);
+    inputRef.current?.focus();
     setSecondsLeft(RESEND_SECONDS);
     const timer = setInterval(() => {
       setSecondsLeft((prev) => {
@@ -89,14 +112,19 @@ export default function VerifyCode() {
       });
     }, 1000);
 
-    if (mode === "sign-up") {
-      await signUp.verifications.sendEmailCode();
-    } else {
-      await signIn.emailCode.sendCode();
+    const { error } =
+      mode === "sign-up"
+        ? await signUp.verifications.sendEmailCode()
+        : await signIn.emailCode.sendCode();
+
+    if (error) {
+      console.log("[verify] resend error:", JSON.stringify(error, null, 2));
+      setErrorMessage(clerkErrorMessage(error));
     }
   };
 
   const handleRetry = () => {
+    attemptedCodeRef.current = null;
     setErrorMessage(null);
     setCode("");
     inputRef.current?.focus();
@@ -168,11 +196,24 @@ export default function VerifyCode() {
             <Text className="text-[13px] text-red-500 mb-sm">
               {errorMessage}
             </Text>
-            <Pressable accessibilityRole="button" onPress={handleRetry}>
-              <Text className="text-[13px] text-cobalt-500 font-jakarta-bold">
-                Try again
-              </Text>
-            </Pressable>
+            <View className="flex-row gap-lg">
+              <Pressable accessibilityRole="button" onPress={handleRetry}>
+                <Text className="text-[13px] text-cobalt-500 font-jakarta-bold">
+                  Try again
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleResend}
+                disabled={secondsLeft > 0}
+              >
+                <Text className="text-[13px] text-cobalt-500 font-jakarta-bold">
+                  {secondsLeft > 0
+                    ? `Resend in 0:${String(secondsLeft).padStart(2, "0")}`
+                    : "Resend code"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : isVerified ? (
           <View className="flex-row items-center gap-sm mt-lg">
