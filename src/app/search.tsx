@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/expo";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -30,6 +31,7 @@ type Section = "destination" | "dates" | "guests" | null;
 export default function WhereTo() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isSignedIn } = useAuth();
 
   const [activeSection, setActiveSection] = useState<Section>(null);
   const toggleSection = (section: Section) =>
@@ -57,7 +59,7 @@ export default function WhereTo() {
     >
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.back()}
+        onPress={() => router.replace(isSignedIn ? "/" : "/onboarding")}
         hitSlop={12}
         className="w-10 h-10 items-center justify-center rounded-full bg-white"
       >
