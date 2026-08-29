@@ -3,6 +3,8 @@ import { Redirect } from "expo-router";
 import { Image, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { posthog } from "@/lib/posthog";
+
 export default function Profile() {
   const insets = useSafeAreaInsets();
   const { isLoaded, isSignedIn, signOut } = useAuth();
@@ -31,7 +33,10 @@ export default function Profile() {
       </Text>
       <Pressable
         accessibilityRole="button"
-        onPress={() => signOut()}
+        onPress={() => {
+          posthog?.capture("sign_out_initiated");
+          signOut();
+        }}
         className="bg-cobalt-500 rounded-full py-md px-lg mt-md"
         style={({ pressed }) => pressed && { opacity: 0.85 }}
       >

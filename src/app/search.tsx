@@ -7,6 +7,7 @@ import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { destinations } from "@/data/destinations";
+import { posthog } from "@/lib/posthog";
 import type { Destination } from "@/types/travel";
 
 const CARD_SHADOW = {
@@ -158,6 +159,10 @@ export default function WhereTo() {
                   onPress={() => {
                     setSelected(destination);
                     setActiveSection(null);
+                    posthog?.capture("search_destination_selected", {
+                      destination_id: destination.id,
+                      destination_country: destination.country,
+                    });
                   }}
                   className={`flex-row items-center justify-between px-md py-md ${
                     index < destinations.length - 1
@@ -327,6 +332,10 @@ export default function WhereTo() {
               onPress={() => {
                 setGuestsConfirmed(true);
                 setActiveSection(null);
+                posthog?.capture("search_travelers_confirmed", {
+                  adult_count: adults,
+                  child_count: kids,
+                });
               }}
               className="items-center justify-center rounded-full bg-cobalt-500 py-sm my-md"
             >
@@ -341,6 +350,16 @@ export default function WhereTo() {
       <Pressable
         accessibilityRole="button"
         disabled={!selected}
+        onPress={() => {
+          if (!selected) return;
+          posthog?.capture("travel_search_submitted", {
+            destination_id: selected.id,
+            destination_country: selected.country,
+            has_dates: Boolean(checkIn && checkOut),
+            adult_count: adults,
+            child_count: kids,
+          });
+        }}
         className={`flex-row items-center justify-center gap-sm rounded-full py-md mt-sm ${
           selected ? "bg-cobalt-500" : "bg-cobalt-100"
         }`}

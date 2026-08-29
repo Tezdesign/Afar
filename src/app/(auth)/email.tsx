@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { clerkErrorCode, clerkErrorMessage } from "@/lib/clerk";
+import { posthog } from "@/lib/posthog";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,6 +38,7 @@ export default function EmailSignIn() {
       const { error } = await signIn.emailCode.sendCode({ emailAddress });
 
       if (!error) {
+        posthog?.capture("email_auth_code_requested", { auth_mode: "sign_in" });
         router.push({
           pathname: "/verify",
           params: { email: emailAddress, mode: "sign-in" },
@@ -62,6 +64,7 @@ export default function EmailSignIn() {
         return;
       }
 
+      posthog?.capture("email_auth_code_requested", { auth_mode: "sign_up" });
       router.push({
         pathname: "/verify",
         params: { email: emailAddress, mode: "sign-up" },

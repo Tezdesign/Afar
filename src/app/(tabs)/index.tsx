@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { images } from "@/constants/images";
 import { deals } from "@/data/deals";
 import { destinations } from "@/data/destinations";
+import { posthog } from "@/lib/posthog";
 import { useAuthStore } from "@/store/authStore";
 import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
@@ -258,7 +259,16 @@ export default function Home() {
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => toggleSaved(destination.id)}
+                    onPress={() => {
+                      const action = isSaved
+                        ? "destination_removed_from_saved"
+                        : "destination_saved";
+                      toggleSaved(destination.id);
+                      posthog?.capture(action, {
+                        destination_id: destination.id,
+                        destination_country: destination.country,
+                      });
+                    }}
                     className="absolute top-2 right-2 w-7 h-7 items-center justify-center rounded-full bg-white"
                   >
                     <Ionicons

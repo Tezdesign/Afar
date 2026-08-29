@@ -8,6 +8,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { images } from "@/constants/images";
+import { posthog } from "@/lib/posthog";
 
 const SCRIM_COLORS = [
   "rgba(13,20,38,0)",
@@ -32,6 +33,9 @@ export default function Onboarding() {
     try {
       const { createdSessionId } = await startSSOFlow({ strategy });
       if (createdSessionId) {
+        posthog?.capture("sso_sign_in_completed", {
+          provider: strategy === "oauth_apple" ? "apple" : "google",
+        });
         router.replace("/");
       }
       // No createdSessionId means the user cancelled — do nothing.

@@ -1,5 +1,6 @@
-import { ClerkProvider, useAuth } from "@clerk/expo";
+import { ClerkProvider, useAuth, useUser } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
+import { PostHogErrorBoundary, PostHogProvider } from "posthog-react-native";
 import "../global.css";
 
 import {
@@ -11,10 +12,11 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Image, View } from "react-native";
 
 import { images } from "@/constants/images";
+import { posthog } from "@/lib/posthog";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 
@@ -23,6 +25,50 @@ if (!publishableKey) {
 }
 
 SplashScreen.preventAutoHideAsync();
+
+function PostHogErrorFallback() {
+  return (
+    <View className="flex-1 items-center justify-center bg-white px-6">
+      <Image
+        source={images.afarLogo}
+        resizeMode="contain"
+        style={{ width: 220, height: 79 }}
+      />
+    </View>
+  );
+}
+
+function UserIdentification() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const identifiedUserId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!posthog || !isLoaded) return;
+
+    if (!isSignedIn) {
+      if (identifiedUserId.current) {
+        posthog.reset();
+        identifiedUserId.current = null;
+      }
+      return;
+    }
+
+    if (!user || identifiedUserId.current === user.id) return;
+
+    posthog.identify(user.id, {
+      $set: {
+        ...(user.primaryEmailAddress?.emailAddress
+          ? { email: user.primaryEmailAddress.emailAddress }
+          : {}),
+        ...(user.fullName ? { name: user.fullName } : {}),
+      },
+    });
+    identifiedUserId.current = user.id;
+  }, [isLoaded, isSignedIn, user]);
+
+  return null;
+}
 
 function AppGate() {
   const { isLoaded } = useAuth();
@@ -63,9 +109,20 @@ export default function RootLayout() {
     return null;
   }
 
+  const app = <AppGate />;
+
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <AppGate />
+      {posthog ? (
+        <PostHogProvider client={posthog}>
+          <UserIdentification />
+          <PostHogErrorBoundary fallback={PostHogErrorFallback}>
+            {app}
+          </PostHogErrorBoundary>
+        </PostHogProvider>
+      ) : (
+        app
+      )}
     </ClerkProvider>
   );
 }

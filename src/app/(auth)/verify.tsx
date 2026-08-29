@@ -6,6 +6,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { clerkErrorMessage } from "@/lib/clerk";
+import { posthog } from "@/lib/posthog";
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
@@ -58,6 +59,7 @@ export default function VerifyCode() {
             return;
           }
           if (signUp.status === "complete") {
+            posthog?.capture("email_auth_completed", { auth_mode: "sign_up" });
             setIsVerified(true);
             await signUp.finalize({ navigate });
           } else {
@@ -72,6 +74,7 @@ export default function VerifyCode() {
             return;
           }
           if (signIn.status === "complete") {
+            posthog?.capture("email_auth_completed", { auth_mode: "sign_in" });
             setIsVerified(true);
             await signIn.finalize({ navigate });
           } else {
@@ -84,7 +87,16 @@ export default function VerifyCode() {
     };
 
     verify();
-  }, [isComplete, isVerifying, isVerified, code, mode, signIn, signUp, router]);
+  }, [
+    isComplete,
+    isVerifying,
+    isVerified,
+    code,
+    mode,
+    signIn,
+    signUp,
+    router,
+  ]);
 
   // A previous attempt may have actually completed server-side (e.g. it
   // crashed after finalize() created the session but before navigating
