@@ -45,7 +45,10 @@ export const useSavedStore = create<SavedState>()(
       clearSaved: () => set({ savedIds: new Set() }),
     }),
     {
-      name: "saved-store",
+      // "guest" is the default until SessionEffects (src/app/_layout.tsx)
+      // points this at the signed-in account's own bucket — see the note
+      // there on why storage is scoped per account.
+      name: "saved-store:guest",
       storage: setAwareStorage,
     },
   ),

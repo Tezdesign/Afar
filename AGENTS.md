@@ -168,6 +168,44 @@ Use these assets properly in the UI.
 
 ---
 
+## Design Tokens (source of truth)
+
+The canonical design system lives in `src/global.css` (`@theme` block) with a JS
+mirror in `src/theme/colors.ts`. Always style from these tokens. Never invent a
+palette, typeface, radius, or spacing value — if something is missing, add it to
+`src/global.css` first, then use it.
+
+**Colors**
+
+| Role | Token | Value |
+| --- | --- | --- |
+| Primary text / dark surface | `ink` | `#17181F` |
+| App background / muted surface | `cloud` | `#F1F4F9` |
+| Borders / dividers | `line` | `#E5E7EB` |
+| Success / positive | `go` | `#1C9A6C` |
+| Brand accent + CTA | `cobalt-500` | `#1D4FD6` (ramp: 50/100/300/500/700/900) |
+| Warm secondary accent | `ember-500` | `#FF6B45` (ramp: 50/100/300/500/700) |
+
+Use Tailwind class names generated from these: `bg-cobalt-500`, `text-ink`,
+`border-line`, `bg-cloud`, etc.
+
+**Typography** — Plus Jakarta Sans only, one family at four weights. Use the named
+type utilities, do not hand-roll font sizes: `text-display` (40/44, extrabold),
+`text-title` (24/30, bold), `text-body` (16/25.6, medium), `text-caption`
+(12/16, semibold, uppercase, tracked), `text-numeric` (24/28, extrabold, tabular).
+
+**Spacing** — 4px grid: `xs` 4 · `sm` 8 · `md` 16 · `lg` 24 · `xl` 32 · `xxl` 48
+· `xxxl` 64. Screen margins are `md`–`lg` (16–24px).
+
+**Radius** — `sm` 8 (chips/inputs) · `md` 14 (cards) · `lg` 20 (hero/photo cards)
+· `full` 999 (buttons, pills, tabs). One radius scale per screen — never mix
+arbitrarily.
+
+**Shadows** — `shadow-card` for resting cards, `shadow-raised` for floating
+elements. Soft, single-direction only; never stacked or colored.
+
+---
+
 ## Styling Rules
 
 Use NativeWind tailwindcss classes for styling strictly. Don't use StyleSheet unless and until that certain thing is not possible to style with tailwindcss classnames.

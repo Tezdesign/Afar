@@ -65,6 +65,10 @@ export interface Destination {
   blurb: string;
   priceFrom: number;
   currency: CurrencyCode;
+  /** Aggregate traveller rating, 0–5, one decimal */
+  rating: number;
+  /** Remote hero photo (Unsplash CDN) */
+  imageUrl: string;
 }
 
 export type DealType = "flight" | "hotel" | "car";
@@ -79,4 +83,9 @@ export interface Deal {
   currency: CurrencyCode;
   /** id of the referenced Flight, Hotel, or CarRental */
   refId: string;
+  /** Remote card photo (Unsplash CDN) */
+  imageUrl: string;
+  /** True → shown in the home hero carousel for its mode.
+   *  False/undefined → only appears in the "Trending now" list. */
+  featured?: boolean;
 }

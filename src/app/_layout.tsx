@@ -17,6 +17,9 @@ import { Image, View } from "react-native";
 
 import { images } from "@/constants/images";
 import { posthog } from "@/lib/posthog";
+import { useAuthStore } from "@/store/authStore";
+import { useSavedStore } from "@/store/savedStore";
+import { useTripsStore } from "@/store/tripsStore";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 
@@ -38,17 +41,42 @@ function PostHogErrorFallback() {
   );
 }
 
-function UserIdentification() {
+// Points authStore/savedStore/tripsStore at the given account's own
+// AsyncStorage bucket ("guest" while signed out) and loads whatever was
+// saved there before. This is how a saved deal survives that same
+// account's logout+login, while a different account on the same device
+// never sees it — each scope is its own bucket, nothing is shared.
+function applyStorageScope(scope: string) {
+  useAuthStore.persist.setOptions({ name: `auth-store:${scope}` });
+  useSavedStore.persist.setOptions({ name: `saved-store:${scope}` });
+  useTripsStore.persist.setOptions({ name: `trips-store:${scope}` });
+
+  useAuthStore.persist.rehydrate();
+  useSavedStore.persist.rehydrate();
+  useTripsStore.persist.rehydrate();
+}
+
+// Runs side effects tied to the Clerk sign-in/sign-out transition: swaps
+// the local stores to the right account's storage scope, and keeps
+// PostHog's identified user in sync.
+function SessionEffects() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const identifiedUserId = useRef<string | null>(null);
+  const activeScope = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!posthog || !isLoaded) return;
+    if (!isLoaded) return;
+
+    const scope = isSignedIn && user ? user.id : "guest";
+    if (activeScope.current !== scope) {
+      activeScope.current = scope;
+      applyStorageScope(scope);
+    }
 
     if (!isSignedIn) {
       if (identifiedUserId.current) {
-        posthog.reset();
+        posthog?.reset();
         identifiedUserId.current = null;
       }
       return;
@@ -56,7 +84,7 @@ function UserIdentification() {
 
     if (!user || identifiedUserId.current === user.id) return;
 
-    posthog.identify(user.id, {
+    posthog?.identify(user.id, {
       $set: {
         ...(user.primaryEmailAddress?.emailAddress
           ? { email: user.primaryEmailAddress.emailAddress }
@@ -113,9 +141,9 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <SessionEffects />
       {posthog ? (
         <PostHogProvider client={posthog}>
-          <UserIdentification />
           <PostHogErrorBoundary fallback={PostHogErrorFallback}>
             {app}
           </PostHogErrorBoundary>

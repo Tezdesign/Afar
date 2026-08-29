@@ -30,7 +30,10 @@ export const useTripsStore = create<TripsState>()(
       clearTrips: () => set({ trips: [] }),
     }),
     {
-      name: "trips-store",
+      // "guest" is the default until SessionEffects (src/app/_layout.tsx)
+      // points this at the signed-in account's own bucket — see the note
+      // there on why storage is scoped per account.
+      name: "trips-store:guest",
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),
