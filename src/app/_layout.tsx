@@ -10,13 +10,15 @@ import {
   PlusJakartaSans_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/plus-jakarta-sans";
+import { StreamVideo } from "@stream-io/video-react-native-sdk";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Image, View } from "react-native";
 
 import { images } from "@/constants/images";
 import { posthog } from "@/lib/posthog";
+import { useStreamVideoClient } from "@/lib/stream";
 import { useAuthStore } from "@/store/authStore";
 import { useSavedStore } from "@/store/savedStore";
 import { useTripsStore } from "@/store/tripsStore";
@@ -98,6 +100,17 @@ function SessionEffects() {
   return null;
 }
 
+// Mounted once, above the router, so the Stream Video client (and any
+// active call) survives screen transitions — see RULES.md > Navigation and
+// overlay discipline. Renders children plain (no video context) while
+// signed out or still connecting; the assistant screen's mic button is the
+// only thing that actually starts a call.
+function StreamVideoRoot({ children }: { children: ReactNode }) {
+  const client = useStreamVideoClient();
+  if (!client) return <>{children}</>;
+  return <StreamVideo client={client}>{children}</StreamVideo>;
+}
+
 function AppGate() {
   const { isLoaded } = useAuth();
 
@@ -137,7 +150,11 @@ export default function RootLayout() {
     return null;
   }
 
-  const app = <AppGate />;
+  const app = (
+    <StreamVideoRoot>
+      <AppGate />
+    </StreamVideoRoot>
+  );
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>

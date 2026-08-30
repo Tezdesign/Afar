@@ -1,6 +1,13 @@
 {
   "version": 1,
   "skills": {
+    "agent": {
+      "source": "visionagents.ai",
+      "sourceUrl": "https://visionagents.ai/",
+      "sourceType": "well-known",
+      "computedHash": "db5a973210a132ce9e18654d89dcfcf640ce33ce77db74fc97c77bfd8501d562",
+      "wellKnownDigest": "sha256:3a664aca4fd93116e044da4f0f256fca195bd4c1a24f62ac6fa8380df6c3d3e0"
+    },
     "clerk": {
       "source": "clerk/skills",
       "sourceType": "github",
@@ -168,6 +175,30 @@
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-web-to-native/SKILL.md",
       "computedHash": "8b438fca8004ae91514c9ad8e2fd34566cef0866065451a6e89279c52992a966"
+    },
+    "stream": {
+      "source": "GetStream/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/stream/SKILL.md",
+      "computedHash": "8cd4a4040db6fcdb23d6148d5f3c81bd9495e297e419406544d2e6e8f208280a"
+    },
+    "stream-builder": {
+      "source": "GetStream/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/stream-builder/SKILL.md",
+      "computedHash": "f3fe25bb5688e5e135cf28ebefd5d842fb986f0896630dbbb87a6a00163d56d9"
+    },
+    "stream-docs": {
+      "source": "GetStream/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/stream-docs/SKILL.md",
+      "computedHash": "f527d6199d59883240ddeac1022b19e231e1868ef8a48713157f172a0c28fc45"
+    },
+    "stream-react-native": {
+      "source": "GetStream/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/stream-react-native/SKILL.md",
+      "computedHash": "2f45f384ebb2ad05ac4be004cd0006bb2c74eee950d5caae234f31aa45eab3ef"
     }
   }
 }
