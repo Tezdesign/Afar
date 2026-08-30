@@ -20,6 +20,7 @@ import { images } from "@/constants/images";
 import { posthog } from "@/lib/posthog";
 import { useStreamVideoClient } from "@/lib/stream";
 import { useAuthStore } from "@/store/authStore";
+import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
 import { useTripsStore } from "@/store/tripsStore";
 
@@ -64,7 +65,9 @@ function applyStorageScope(scope: string) {
 function SessionEffects() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
+  const preferredLanguage = usePreferencesStore((state) => state.language);
   const identifiedUserId = useRef<string | null>(null);
+  const lastIdentifiedLanguage = useRef<string | null>(null);
   const activeScope = useRef<string | null>(null);
 
   useEffect(() => {
@@ -80,11 +83,18 @@ function SessionEffects() {
       if (identifiedUserId.current) {
         posthog?.reset();
         identifiedUserId.current = null;
+        lastIdentifiedLanguage.current = null;
       }
       return;
     }
 
-    if (!user || identifiedUserId.current === user.id) return;
+    if (!user) return;
+
+    // Re-identify on sign-in (new user id) and again any time
+    // preferred_language changes mid-session — not on every render.
+    const isNewUser = identifiedUserId.current !== user.id;
+    const languageChanged = lastIdentifiedLanguage.current !== preferredLanguage;
+    if (!isNewUser && !languageChanged) return;
 
     posthog?.identify(user.id, {
       $set: {
@@ -92,10 +102,15 @@ function SessionEffects() {
           ? { email: user.primaryEmailAddress.emailAddress }
           : {}),
         ...(user.fullName ? { name: user.fullName } : {}),
+        preferred_language: preferredLanguage,
       },
+      // PostHog only records $set_once the first time it sees this
+      // property for a person — harmless to send on every identify call.
+      $set_once: { signup_date: new Date().toISOString() },
     });
     identifiedUserId.current = user.id;
-  }, [isLoaded, isSignedIn, user]);
+    lastIdentifiedLanguage.current = preferredLanguage;
+  }, [isLoaded, isSignedIn, user, preferredLanguage]);
 
   return null;
 }

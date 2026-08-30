@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { posthog } from "@/lib/posthog";
 import { assistantCallId, ASSISTANT_CALL_TYPE, useStreamVideoClient } from "@/lib/stream";
 
 const CARD_SHADOW = {
@@ -118,11 +119,24 @@ export default function Assistant() {
   const [call, setCall] = useState<Call | null>(null);
   const [uiState, setUiState] = useState<CallUIState>({ kind: "idle" });
   const agentSessionId = useRef<string | null>(null);
+  // Set the moment join() succeeds (not on screen mount — this screen can be
+  // visited without a call ever starting), read by both the intentional-end
+  // and abandonment paths below so duration_seconds is accurate either way.
+  const callStartedAtRef = useRef<number | null>(null);
 
-  // Leave the call if this screen unmounts while still connected.
+  // Leave the call if this screen unmounts (or navigates back) while still
+  // connected — that's exactly "abandoned", since an intentional hangup
+  // already leaves via endCall below and its cleanup here is a no-op.
   useEffect(() => {
     return () => {
       if (call && call.state.callingState !== CallingState.LEFT) {
+        posthog?.capture("assistant_call_abandoned", {
+          call_id: call.id,
+          duration_seconds: Math.round(
+            (Date.now() - (callStartedAtRef.current ?? Date.now())) / 1000,
+          ),
+        });
+        callStartedAtRef.current = null;
         call.leave().catch((err) => console.error(err));
       }
     };
@@ -168,6 +182,8 @@ export default function Assistant() {
       await newCall.camera.disable().catch(() => {});
       await newCall.join({ create: true });
       await newCall.microphone.enable().catch(() => {});
+      callStartedAtRef.current = Date.now();
+      posthog?.capture("assistant_call_started", { call_id: newCall.id });
       setCall(newCall);
       setUiState({ kind: "joined" });
     } catch (err) {
@@ -181,8 +197,15 @@ export default function Assistant() {
 
   const endCall = useCallback(async () => {
     if (call && call.state.callingState !== CallingState.LEFT) {
+      posthog?.capture("assistant_call_ended", {
+        call_id: call.id,
+        duration_seconds: Math.round(
+          (Date.now() - (callStartedAtRef.current ?? Date.now())) / 1000,
+        ),
+      });
       await call.leave().catch((err) => console.error(err));
     }
+    callStartedAtRef.current = null;
     setCall(null);
     setUiState({ kind: "ended" });
 

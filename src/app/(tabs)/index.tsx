@@ -231,7 +231,11 @@ export default function Home() {
             <Pressable
               key={deal.id}
               accessibilityRole="button"
-              onPress={() => router.push("/search")}
+              onPress={() =>
+                deal.type === "flight"
+                  ? router.push(`/flight/${deal.refId}`)
+                  : router.push("/search")
+              }
               className="rounded-lg overflow-hidden"
               style={[{ width: cardWidth, height: 188 }, CARD_SHADOW]}
             >
@@ -385,7 +389,11 @@ export default function Home() {
             <Pressable
               key={deal.id}
               accessibilityRole="button"
-              onPress={() => router.push("/search")}
+              onPress={() =>
+                deal.type === "flight"
+                  ? router.push(`/flight/${deal.refId}`)
+                  : router.push("/search")
+              }
               className="flex-row items-center gap-sm bg-white rounded-md p-md"
               style={CARD_SHADOW}
             >
