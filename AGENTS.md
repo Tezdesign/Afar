@@ -1,523 +1,148 @@
-You are an expert React Native + Expo engineer helping build a production-quality teaching project.
-
-You write clean, simple, maintainable code. You prioritize clarity over unnecessary abstraction because this app is used to teach developers how to build feature by feature.
-
-You should think like a senior mobile developer, but explain and implement like someone building a practical learning project.
-
----
-
-## Project Overview
-
-We are building a Skyscanner-inspired AI mobile app using Expo.
-
-The app helps users find best travel , hotels , cars  offers through interactive navigation that may include:
-
-- easy booking
-- chat-based AI assistant
-- local and international offers
-- language selection
-- currency selection
-- beautiful mobile-first UI inspired by searching apps
-
-This is primarily a learning project. The goal is to teach developers how to build a modern AI-powered Expo app feature by feature.
-
----
-
-## Tech Stack
-
-Use the following stack:
-
-- Expo
-- React Native
-- TypeScript
-- Expo Router
-- NativeWind / Tailwind CSS
-- Zustand
-- AsyncStorage
-- Clerk for authentication
-- Stream / GetStream for video and real-time communication
-- Stream Vision Agents for AI video teacher capability
-- Server-side API routes or backend functions for secrets, tokens, and AI calls
-
-Do not introduce new major libraries unless there is a strong reason.
-
----
-
-## Development Philosophy
-
-Build feature by feature.
-
-For every feature:
-
-1. Understand the user request.
-2. Check this file before coding.
-3. Keep the implementation simple.
-4. Avoid overengineering.
-5. Prefer readable code over clever code.
-6. Build the smallest useful version first.
-7. Refactor only when repetition or complexity appears.
-8. Keep the app easy to teach and explain.
-
-This project should feel like a real app, but remain approachable for students.
-
----
-
-## Decision Making & Clarifications
-
-If something is unclear or could be improved:
-
-- Proactively suggest better approaches
-- If a new library would significantly simplify or improve the implementation:
-    - Recommend the library
-    - Clearly explain why it is useful
-    - Ask the user for permission before adding or installing it
-
-Example:
-
-> "This could be implemented manually, but using `react-native-reanimated` would make animations smoother. Do you want me to add it?"
-
-Do not install or use new libraries without user approval.
-
----
-
-## Architecture Guidelines
-
-Use this structure unless there is a strong reason to change it:
-
-```txt
-app/
-  (auth)/
-  (tabs)/
-  lesson/
-components/
-constants/
-data/
-hooks/
-lib/
-store/
-types/
-assets/
-```
-
-### app/
-
-Use this for routes and screens only.
-
-Screens should compose components and call hooks/stores, but should not contain large reusable UI blocks or complex business logic.
-
-### components/
-
-Create a component only when:
-
-- it is reused in multiple places
-- it makes a screen easier to read
-- it represents a clear UI concept like `LessonCard`, `XPBar`, `LanguageCard`, or `PrimaryButton`
-
-Do not create tiny one-off components too early.
-
-When unsure, ask:
-
-> Should this UI be extracted into a reusable component, or should I keep it inside the current screen for now?
-
----
-
-## UI Implementation Rules (VERY IMPORTANT)
-
-For any UI-related task:
-
-- The goal is to **replicate the provided design exactly**
-- Match the UI **pixel-perfectly**
-
-When the user provides a design image:
-
-You MUST:
-
-- match layout exactly
-- match spacing and padding
-- match font sizes and hierarchy
-- match colors precisely
-- match border radius and shadows
-- match alignment and positioning
-- match proportions of elements
-- replicate all visible UI elements
-
-Do not approximate. Do not simplify unless explicitly asked.
-
----
-
-## Image Generation Rules
-
-If the user enables image generation:
-
-- Generate images that are **visually identical or extremely close** to the provided UI reference
-- Do not change style, colors, or composition
-- Keep consistency with the design system
-
-After generating images:
-
-- Place them inside the `assets/` folder
-- Use clear and organized naming:
-
-```txt
-assets/images/
-  onboarding-illustration.png
-  mascot-happy.png
-```
-
-Use these assets properly in the UI.
-
----
-
-## Design Tokens (source of truth)
-
-The canonical design system lives in `src/global.css` (`@theme` block) with a JS
-mirror in `src/theme/colors.ts`. Always style from these tokens. Never invent a
-palette, typeface, radius, or spacing value — if something is missing, add it to
-`src/global.css` first, then use it.
-
-**Colors**
-
-| Role | Token | Value |
-| --- | --- | --- |
-| Primary text / dark surface | `ink` | `#17181F` |
-| App background / muted surface | `cloud` | `#F1F4F9` |
-| Borders / dividers | `line` | `#E5E7EB` |
-| Success / positive | `go` | `#1C9A6C` |
-| Brand accent + CTA | `cobalt-500` | `#1D4FD6` (ramp: 50/100/300/500/700/900) |
-| Warm secondary accent | `ember-500` | `#FF6B45` (ramp: 50/100/300/500/700) |
-
-Use Tailwind class names generated from these: `bg-cobalt-500`, `text-ink`,
-`border-line`, `bg-cloud`, etc.
-
-**Typography** — Plus Jakarta Sans only, one family at four weights. Use the named
-type utilities, do not hand-roll font sizes: `text-display` (40/44, extrabold),
-`text-title` (24/30, bold), `text-body` (16/25.6, medium), `text-caption`
-(12/16, semibold, uppercase, tracked), `text-numeric` (24/28, extrabold, tabular).
-
-**Spacing** — 4px grid: `xs` 4 · `sm` 8 · `md` 16 · `lg` 24 · `xl` 32 · `xxl` 48
-· `xxxl` 64. Screen margins are `md`–`lg` (16–24px).
-
-**Radius** — `sm` 8 (chips/inputs) · `md` 14 (cards) · `lg` 20 (hero/photo cards)
-· `full` 999 (buttons, pills, tabs). One radius scale per screen — never mix
-arbitrarily.
-
-**Shadows** — `shadow-card` for resting cards, `shadow-raised` for floating
-elements. Soft, single-direction only; never stacked or colored.
-
----
-
-## Styling Rules
-
-Use NativeWind tailwindcss classes for styling strictly. Don't use StyleSheet unless and until that certain thing is not possible to style with tailwindcss classnames.
-
-Prioritize clean, readable mobile UI.
-
-When building from an attached design image:
-
-- match spacing closely
-- match typography hierarchy
-- match border radius and shadows
-- match layout structure
-- use consistent reusable styles
-- make the UI responsive for different screen sizes
-
-Prefer reusable class patterns through utilities in `global.css`. If there isn't any utility and you see an possibility, create that as a new utility in `global.css` by following BEM method.
-
-## Avoid large inline styles unless required.
-
-## NativeWind Rule
-
-Use the NativeWind version already installed in this app.
-
-Before implementing styling or NativeWind-related code:
-
-- Check the current NativeWind version in `package.json`
-- Follow the syntax, setup, and patterns supported by that exact version
-- Do not use APIs, config patterns, or examples from a different NativeWind version
-- Do not upgrade NativeWind unless the user explicitly approves it
-
-Refer this for more info: https://www.nativewind.dev/v5/llms-full.txt
-
----
-
-## Style Exception Rules
-
-Use `StyleSheet` or inline styles for these React Native components/scenarios instead of NativeWind/tailwindcss classes:
-
-| Component / Scenario           | Why                                                                                      | Use Instead                           |
-| ------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| **SafeAreaView**               | From `react-native` or `react-native-safe-area-context` — className not supported        | Inline styles or `StyleSheet`         |
-| **Button**                     | Only supports `title` and `onPress` props — cannot customize background, border, padding | `TouchableOpacity` with custom styles |
-| **KeyboardAvoidingView**       | Behavior props not supported by className                                                | Inline styles or `StyleSheet`         |
-| **Modal**                      | `visible`, `transparent` props                                                           | Inline styles                         |
-| **ScrollView**                 | `contentContainerStyle`, `indicatorStyle`                                                | `StyleSheet`                          |
-| **TextInput**                  | Input-specific props like `underlineColorAndroid`                                        | Inline styles                         |
-| **Animated.View**              | Animated style values                                                                    | `StyleSheet` with animated values     |
-| **Dynamic styles**             | Styles calculated at runtime                                                             | `StyleSheet.create()` or inline       |
-| **Platform-specific**          | iOS-only or Android-only props                                                           | Conditional inline styles             |
-| **Pressable/TouchableOpacity** | `style` prop for pressed states                                                          | `StyleSheet`                          |
-| **Shadow (iOS/Android)**       | Different shadow syntax per platform                                                     | `StyleSheet` with platform checks     |
-| **Transform arrays**           | Complex transform combinations                                                           | `StyleSheet`                          |
-| **Z-index**                    | Sometimes needs explicit StyleSheet                                                      | `StyleSheet`                          |
-
-### When to Use StyleSheet
-
-Use `StyleSheet` or inline styles when:
-
-- The prop is React Native-specific (not web-equivalent)
-- The value is dynamic/calculated at runtime
-- Platform-specific behavior is needed
-- NativeWind doesn't map the property to a style
-
-### SafeAreaView Example
-
-```tsx
-// ✅ CORRECT - Use inline styles or StyleSheet
-import { SafeAreaView } from "react-native-safe-area-context";
-
-function MyScreen() {
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* content */}
-    </SafeAreaView>
-  );
-}
-
-// ❌ INCORRECT - Do not use NativeWind/tailwindcss classes
-function MyScreen() {
-  return (
-    <SafeAreaView className="flex-1 bg-white">{/* content */}</SafeAreaView>
-  );
-}
-```
-
-And similar for above mentioned exception components. Otherwise, alaways stick to nativewind utilities.
-
----
-
-## UI Quality Bar
-
-The app should feel:
-
-- playful
-- polished
-- friendly
-- mobile-first
-- visually close to the provided design references
-
-Use:
-
-- rounded cards
-- soft shadows
-- clear spacing
-- progress indicators
-- friendly empty states
-- large touch targets
-- simple animations when useful
-
----
-
-## Image Rule
-
-Use centralized image imports.
-
-Before using any image asset:
-
-1. Check if `constants/images.ts` exists.
-2. If it does not exist, create it.
-3. Import and export all app images from `constants/images.ts`.
-4. Use images through the centralized object.
-
-Example:
-
-```ts
-import mascot from "@/assets/images/mascot.png";
-import mascotLogo from "@/assets/images/mascot-logo.png";
-
-export const images = {
-  mascot,
-  mascotLogo,
-};
-```
-
-Use images like this,
-
-```tsx
-<Image source={images.mascot} />
-```
-
-Do not require/import image assets directly inside screens or components unless there is a strong reason.
-
----
-
-## data/
-
-Use this for hardcoded lesson content.
-
-Example:
-
-```txt
-data/
-  languages.ts
-  lessons.ts
-```
-
-Lesson content should be typed.
-
----
-
-## store/
-
-Use Zustand stores here.
-
-Use Zustand for:
-
-- selected language
-- completed lessons
-- XP
-- streak-like local values
-- current lesson state
-- app settings
-
-Use AsyncStorage persistence where needed.
-
----
-
-## lib/
-
-Use this for external service helpers.
-
-Examples:
-
-```txt
-lib/
-  clerk.ts
-  stream.ts
-  api.ts
-  cn.ts
-```
-
-Never expose secret keys in the mobile app.
-
----
-
-## State Management Rules
-
-Use Zustand for global client state.
-
-Use local state for temporary UI state.
-
-Persist using AsyncStorage when needed.
-
----
-
-## TypeScript Rules
-
-Use TypeScript strictly.
-
-Avoid `any`.
-
-Keep types simple and readable.
-
----
-
-## Feature Implementation Rules
-
-When the user asks to build a feature:
-
-1. Read this file first.
-2. Identify files to change.
-3. Keep changes focused.
-4. Do not rewrite unrelated code.
-5. Follow existing patterns.
-6. Ensure feature works end-to-end.
-7. Fix errors before finishing.
-
----
-
-## AI / Stream / Vision Agent Rules
-
-Use backend/serverless for:
-
-- Stream tokens
-- AI calls
-- Vision Agent sessions
-
-Never expose secrets in the frontend.
-
----
-
-## Clerk Rules
-
-Use Clerk for authentication.
-
-Do not build custom auth.
-
----
-
-## Lesson Content Rules
-
-Use hardcoded JSON/TS for lessons.
-
-Do not introduce a database unless explicitly requested.
-
----
-
-## Code Simplicity Rules
-
-Avoid overengineering.
-
-Refactor only when needed.
-
----
-
-## Component Creation Rule
-
-Only create reusable components when necessary.
-
-Ask if unsure.
-
----
-
-## Linting and Validation
-
-Run:
+# skyscanner (Afar)
+
+A Skyscanner-inspired travel app (Expo/React Native), branded **Afar** in-app copy and assets
+(`agent/agent.py`'s system prompt, `images.afarLogo`) even though `package.json`/`app.json` still
+say "skyscanner" — a rename in progress, not a bug. Search/browse flights, hotels, and cars from
+hardcoded sample data, plus a voice AI trip assistant over Stream Video. Built as a teaching
+project: feature by feature, smallest useful slice first, explained as you go.
+
+## Stack
+
+- **Language / Runtime**: TypeScript, Expo SDK ~57, React Native 0.86, React 19 (React Compiler on)
+- **Framework**: Expo Router (typed routes, `src/app/`), NativeWind v5 + Tailwind v4 (`src/global.css`)
+- **State**: Zustand v5 with `persist` (AsyncStorage), one store per concern (`src/store/*.ts`)
+- **Auth**: `@clerk/expo` (client) + `@clerk/backend` (server-side token verification)
+- **Realtime / AI**: `@stream-io/video-react-native-sdk` (client) + `@stream-io/node-sdk` (server
+  token minting); the AI trip assistant itself is a separate Python service in `agent/` (Vision
+  Agents framework + Gemini Realtime), not part of this Expo app's build
+- **Analytics**: `posthog-react-native`
+- **Backend**: no server framework — secrets and privileged calls live in Expo Router API routes
+  (`src/app/api/*+api.ts`), which is the entire "backend" for this app
+- **Package manager**: `npm`
+
+## Build approach
+
+<TBD, set by /scope> — informally: feature by feature, smallest useful version first, refactor only
+when repetition/complexity actually shows up (see Rules). No formal scope/spec has been written yet.
+
+## Commands
 
 ```bash
+# Install
+npm install
+
+# Dev (Expo dev client / Metro)
+npm start
+npm run ios     # or: npm run android / npm run web
+
+# Lint
 npm run lint
-npm run typecheck
+
+# Type check — no "typecheck" script exists yet, run tsc directly
+npx tsc --noEmit
 ```
 
-Fix errors.
+No test runner is configured (no `test` script, no Jest config) — nothing to run yet.
 
----
+The AI agent (`agent/`) is a separate Python project with its own git repo, `.venv`, and
+`pyproject.toml` (uv + pytest). It is not started by any command above; see `agent/README.md`. The
+Expo app talks to it over HTTP via `VISION_AGENT_URL` (`src/app/api/assistant-call+api.ts`) — with
+that env unset, the assistant call endpoint no-ops (`reason: "not_configured"`) instead of failing.
 
-## Communication Style
+## Specs
 
-Be concise.
+None yet — no `docs/specs/` or `docs/scope/`. Run `/scope` before this file's Build approach or a
+feature list can be trusted as current.
 
-Explain what changed and how to test.
+## Rules
 
----
+- Routes live under `src/app/` (Expo Router, typed routes + React Compiler experiments on), not a
+  root `app/`: `(auth)/` (`email.tsx` → `verify.tsx`, OTP sign-in), `(tabs)/` (`index`, `saved`,
+  `trips`, `profile`), plus root-level `search.tsx`, `flight/[id].tsx`, `assistant.tsx`, and
+  `onboarding.tsx`, and `api/*+api.ts` for server routes. Read `src/app/(tabs)/_layout.tsx` for the
+  current tab list rather than trusting one enumerated here.
+- No `components/` directory exists yet — screens are still self-contained (up to ~400 lines,
+  e.g. `src/app/(tabs)/index.tsx`, `src/app/search.tsx`). Extract a component only when it's reused
+  in 2+ places or makes a screen meaningfully easier to read; when unsure, ask rather than
+  pre-extract. `hooks/` and a root-level `types/` don't exist either — types live in `src/types/`.
+- Zustand stores (`src/store/*.ts`) are scoped per signed-in account, not just persisted globally:
+  `applyStorageScope()` in `src/app/_layout.tsx` repoints `authStore`/`savedStore`/`tripsStore` at a
+  `<store-name>:<clerkUserId>` (or `:guest`) AsyncStorage bucket on every sign-in/out transition, via
+  `.persist.setOptions({ name })` + `.persist.rehydrate()`. A saved deal survives that account's own
+  logout/login; a different account on the same device never sees it. Follow this pattern for any
+  new store that holds per-user data; `preferencesStore` (e.g. language) is intentionally global,
+  not scoped, since it's a device preference, not account data.
+- Never put Clerk's real session token in a Zustand store — `@clerk/expo/token-cache` already
+  persists it securely. `authStore.token` exists only for a lightweight non-sensitive token, if ever
+  needed (see the doc comment in `src/store/authStore.ts`).
+- Data is hardcoded and typed, not fetched: `src/data/{flights,hotels,cars,deals,destinations,
+  airports,languages,photos}.ts` against interfaces in `src/types/travel.ts`. No database or live
+  API for this version — don't introduce one unless explicitly asked.
+- Secrets and privileged calls only happen server-side, in `src/app/api/*+api.ts`, and only after
+  verifying the caller: `getVerifiedClerkUserId()` (`src/lib/clerkServerAuth.ts`) decodes and checks
+  the client's Clerk session token — never trust a client-supplied user id. `stream-token+api.ts`
+  mints a short-lived Stream token (~4h, client re-hits it to refresh); `assistant-call+api.ts`
+  starts/stops the AI agent's session in that user's personal call (`assistant-${userId}`, matching
+  `assistantCallId()` in `src/lib/stream.ts`) by proxying to the separate `agent/` service. Follow
+  this verify-then-call shape for any new API route; never mint a token or call a paid API directly
+  from client code.
+- `src/lib/apiBaseUrl.ts` resolves this app's own API routes from `Constants.expoConfig.hostUri` in
+  dev (same Metro host); a production build needs `EXPO_PUBLIC_API_BASE_URL` set explicitly, since
+  there's no packager host and no browser origin to infer from on native.
+- Design tokens are canonical in `src/global.css`'s `@theme` block, mirrored in `src/theme/colors.ts`
+  (+ `typography.ts`, `spacing.ts`). Never invent a color/radius/spacing/type value in a screen — add
+  it to `src/global.css` first (as a `@theme` var, or a new `@utility` for a named type style like
+  `text-display`/`text-title`/`text-body`/`text-caption`/`text-numeric`), then use the generated
+  Tailwind class (`bg-cobalt-500`, `text-ink`, `border-line`, …). One radius scale per screen, never
+  mixed; shadows stay single-direction (`shadow-card`, `shadow-raised`), never stacked or colored.
+- Style with NativeWind classes by default; drop to `StyleSheet`/inline styles only where NativeWind
+  can't reach: `SafeAreaView`, `Button` (use `TouchableOpacity` instead), `KeyboardAvoidingView`,
+  `Modal`, `ScrollView`'s `contentContainerStyle`, `TextInput`-specific props, `Animated.View`,
+  runtime-computed/dynamic styles, platform-specific behavior, pressed-state styles, native shadow
+  syntax, transform arrays, and z-index. Check the installed NativeWind version in `package.json`
+  before relying on any syntax from a different major version (currently v5 preview).
+- Images go through `src/constants/images.ts` (already the pattern — see `images.afarLogo` in
+  `src/app/_layout.tsx`); don't `require()`/import an asset directly in a screen or component unless
+  there's a strong reason. Generated or downloaded images live under `assets/images/` with clear
+  names.
+- When a design image is provided, match it: layout, spacing, type hierarchy, colors, radius,
+  shadows, alignment, proportions. Don't approximate or simplify unless told to.
+- A new major dependency needs the user's sign-off first: name it, say why it's worth it in one
+  line, and wait — don't install or wire it in speculatively.
+- TypeScript throughout, `any` avoided, types kept simple and readable over clever.
+- Auth is Clerk only — no custom auth. Real screens: `src/app/(auth)/email.tsx` →
+  `src/app/(auth)/verify.tsx` (email + OTP). `src/lib/clerk.ts` unwraps Clerk's nested
+  `errors[0].code`/`.message` shape (the top-level `code` is a generic wrapper like
+  `"api_response_error"`) — reuse `clerkErrorCode`/`clerkErrorMessage` for any new Clerk error UI
+  rather than reading `error.message` directly.
 
-## Important Constraints
+## Agent skills
 
-No database for this version.
+- [clerk family](.agents/skills/): `clerk/skills` — `clerk`, `clerk-setup`, `clerk-expo`,
+  `clerk-custom-ui`, `clerk-webhooks`, `clerk-cli`, `clerk-backend-api`, `clerk-react-patterns`,
+  `clerk-react-router-patterns`; load the relevant one per Clerk task
+- [expo family](.agents/skills/): source varies per skill — `expo-project-structure`,
+  `expo-tailwind-setup`, `expo-ui`, `expo-native-ui`, `expo-design-system`, `expo-data-fetching`,
+  `expo-module`, `expo-dev-client`, `expo-app-clip`, `expo-brownfield`, `expo-web-to-native`,
+  `expo-migrate-module`, `expo-upgrade`, `eas-workflows`, `eas-hosting`, `eas-update-insights`,
+  `expo-examples`, `expo-skill-eval`, `expo-skill-feedback`; load the relevant one per Expo/EAS task
+- [stream family](.agents/skills/): `stream`, `stream-react-native`, `stream-builder`,
+  `stream-docs`; load for any Stream Video/Chat work — `stream/RULES.md` has the hard auth rule this
+  app already follows (server derives `user_id` from its own session, never a client param)
+- [agent](.agents/skills/agent/): `visionagents.ai`, the Vision Agents framework backing `agent/`;
+  load when touching `agent/agent.py` or the assistant call flow
+- [design/UI set](.claude/skills/): `design`, `ui-styling`, `ui-layout-master`, `design-system`,
+  `brand`, `banner-design`, `slides`, `integration-react-native` — local design/UI-generation
+  skills; load for mockup, styling, or design-system work
 
-Use:
+MCP servers: none connected
+Declined: none recorded
 
-- JSON for content
-- Zustand for state
-- AsyncStorage for persistence
-- backend only for secure operations
+## Context files
 
----
+<!-- Nested AGENTS.md files are listed here as they are created -->
 
-## Final Reminder
-
-Before every feature implementation:
-
-- Read this file
-- Follow it strictly
-- Build clean, simple, teachable code
-- Replicate UI exactly when designs are provided
+_Rewritten from the repo's real structure — this replaces a generic template that described a
+`components/`/`hooks/`/`lesson/` layout this project never had. Worth a quick human pass. Edit
+freely: once a line stops matching this draft, later runs treat it as curated and will flag rather
+than overwrite it._

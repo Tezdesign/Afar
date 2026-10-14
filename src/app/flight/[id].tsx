@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { airports } from "@/data/airports";
@@ -56,10 +57,7 @@ export default function FlightInfo() {
   }
 
   return (
-    <View
-      className="flex-1 bg-cloud"
-      style={{ paddingTop: insets.top + 12 }}
-    >
+    <View className="flex-1 bg-cloud" style={{ paddingTop: insets.top + 12 }}>
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -75,29 +73,34 @@ export default function FlightInfo() {
             <Ionicons name="chevron-back" size={20} color="#17181F" />
           </Pressable>
 
-          <Text className="text-title text-ink mt-lg">
-            {origin.city} → {destination.city}
-          </Text>
-          <Text className="text-body text-ink opacity-60 mb-lg">
-            {formatDate(flight.departDate)}
-            {flight.returnDate
-              ? ` – ${formatDate(flight.returnDate)} · Round trip`
-              : " · One-way"}
-          </Text>
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <Text className="text-display text-ink mt-lg">
+              {origin.city} → {destination.city}
+            </Text>
+            <Text className="text-body text-ink opacity-60 mt-xs">
+              {formatDate(flight.departDate)}
+              {flight.returnDate
+                ? ` – ${formatDate(flight.returnDate)} · Round trip`
+                : " · One-way"}
+            </Text>
 
-          {flight.dealBadge && (
-            <View className="self-start bg-ember-500 rounded-full px-sm py-xs mb-md">
-              <Text className="text-[11px] font-jakarta-bold text-white">
-                {flight.dealBadge}
-              </Text>
-            </View>
-          )}
+            {flight.dealBadge && (
+              <View className="self-start bg-ember-500 rounded-full px-sm py-xs mt-sm">
+                <Text className="text-[11px] font-jakarta-bold text-white">
+                  {flight.dealBadge}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
 
-          <View
-            className="bg-white rounded-lg p-md mb-sm"
-            style={CARD_SHADOW}
+          {/* One cohesive block, sections separated by hairlines instead of
+              stacking separate shadow cards — avoids the generic
+              card-on-card-on-card look. */}
+          <Animated.View
+            entering={FadeInDown.duration(400).delay(80)}
+            className="mt-xl"
           >
-            <View className="flex-row items-center gap-sm mb-sm">
+            <View className="flex-row items-center gap-sm pb-md border-b border-line">
               <View className="w-11 h-11 items-center justify-center rounded-full bg-cobalt-50">
                 <Ionicons name="airplane" size={18} color="#1D4FD6" />
               </View>
@@ -116,71 +119,75 @@ export default function FlightInfo() {
               >
                 <Text
                   className={`text-[11px] font-jakarta-bold ${
-                    flight.stops === 0 ? "text-cobalt-700" : "text-ink opacity-60"
+                    flight.stops === 0
+                      ? "text-cobalt-700"
+                      : "text-ink opacity-60"
                   }`}
                 >
                   {formatStops(flight.stops)}
                 </Text>
               </View>
             </View>
-          </View>
 
-          <View
-            className="bg-white rounded-lg overflow-hidden mb-sm"
-            style={CARD_SHADOW}
-          >
-            <View className="flex-row items-center gap-sm px-md py-md border-b border-line">
-              <Ionicons name="location" size={18} color="#1D4FD6" />
-              <View className="flex-1">
-                <Text className="text-caption text-ink opacity-50">
-                  From
+            {/* Flight-path motif: filled dot (origin) — line — outline dot
+                (destination), stretched to match the From/To column height. */}
+            <View className="flex-row py-md border-b border-line">
+              <View className="items-center mr-sm" style={{ width: 12 }}>
+                <View className="w-[10px] h-[10px] rounded-full bg-cobalt-500" />
+                <View className="flex-1 w-[1.5px] bg-line my-xs" />
+                <View className="w-[10px] h-[10px] rounded-full border-2 border-cobalt-500 bg-white" />
+              </View>
+              <View className="flex-1 justify-between" style={{ gap: 24 }}>
+                <View>
+                  <Text className="text-caption text-ink opacity-50">
+                    From
+                  </Text>
+                  <Text className="text-body text-ink">
+                    {origin.city}, {origin.country} ({origin.code})
+                  </Text>
+                </View>
+                <View>
+                  <Text className="text-caption text-ink opacity-50">To</Text>
+                  <Text className="text-body text-ink">
+                    {destination.city}, {destination.country} (
+                    {destination.code})
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View className="flex-row items-center justify-between pt-md">
+              <Text className="text-[13px] text-ink opacity-50">
+                Total price
+              </Text>
+              <View className="items-end">
+                {flight.previousPrice && (
+                  <Text className="text-[13px] text-ink opacity-40 line-through">
+                    {flight.previousPrice} {flight.currency}
+                  </Text>
+                )}
+                <Text className="text-numeric text-ink">
+                  {flight.price} {flight.currency}
                 </Text>
-                <Text className="text-body text-ink">
-                  {origin.city}, {origin.country} ({origin.code})
+                <Text className="text-[12px] text-ink opacity-50">
+                  per person
                 </Text>
               </View>
             </View>
-            <View className="flex-row items-center gap-sm px-md py-md">
-              <Ionicons name="location" size={18} color="#1D4FD6" />
-              <View className="flex-1">
-                <Text className="text-caption text-ink opacity-50">To</Text>
-                <Text className="text-body text-ink">
-                  {destination.city}, {destination.country} (
-                  {destination.code})
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View
-            className="bg-white rounded-lg p-md flex-row items-center justify-between"
-            style={CARD_SHADOW}
-          >
-            <View>
-              {flight.previousPrice && (
-                <Text className="text-[13px] text-ink opacity-40 line-through">
-                  {flight.previousPrice} {flight.currency}
-                </Text>
-              )}
-              <Text className="text-numeric text-ink">
-                {flight.price} {flight.currency}
-              </Text>
-              <Text className="text-[12px] text-ink opacity-50">
-                per person
-              </Text>
-            </View>
-          </View>
+          </Animated.View>
         </View>
       </ScrollView>
 
       <View
         className="px-lg bg-white border-t border-line"
-        style={{ paddingTop: 16, paddingBottom: insets.bottom + 16 }}
+        style={[{ paddingTop: 16, paddingBottom: insets.bottom + 16 }, CARD_SHADOW]}
       >
         <Pressable
           accessibilityRole="button"
           className="flex-row items-center justify-center gap-sm rounded-full bg-cobalt-500 py-md"
-          style={({ pressed }) => pressed && { opacity: 0.85 }}
+          style={({ pressed }) =>
+            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+          }
         >
           <Text className="text-[14px] font-jakarta-bold text-white">
             Select flight · {flight.price} {flight.currency}
