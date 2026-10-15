@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,8 +9,11 @@ import { LoadError } from "@/components/loadError";
 import { SkeletonBar, SkeletonCard } from "@/components/skeleton";
 import { parseISODate } from "@/lib/dates";
 import { catalog } from "@/lib/db";
+import { posthog } from "@/lib/posthog";
+import { googleFlightsSearchUrl } from "@/lib/serpApi";
 import { useAsync } from "@/lib/useAsync";
 import { useAirportStore } from "@/store/airportStore";
+import { useLiveFlightsStore } from "@/store/liveFlightsStore";
 import { CARD_SHADOW } from "@/theme/shadow";
 
 const formatDate = (iso: string) =>
@@ -30,7 +34,13 @@ export default function FlightInfo() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const airports = useAirportStore((s) => s.airports);
-  const { state, retry } = useAsync(() => catalog.fetchFlight(id), id);
+  // Live flights (spec 0003) live in memory only; sample ones come from the database.
+  const isLive = id.startsWith("live-");
+  const liveEntry = useLiveFlightsStore((s) => s.byId[id]);
+  const { state, retry } = useAsync(
+    () => (isLive ? Promise.resolve(liveEntry?.flight ?? null) : catalog.fetchFlight(id)),
+    id,
+  );
 
   const backButton = (
     <Pressable
@@ -83,7 +93,12 @@ export default function FlightInfo() {
 
   const flight = state.data;
   const origin = airports.find((a) => a.code === flight?.originCode);
-  const destination = airports.find((a) => a.code === flight?.destinationCode);
+  // A live deal can fly somewhere outside the airport catalog: show its city.
+  const destination =
+    airports.find((a) => a.code === flight?.destinationCode) ??
+    (flight?.destinationCity
+      ? { code: flight.destinationCode, city: flight.destinationCity, country: "", countryCode: "" }
+      : undefined);
 
   if (!flight || !origin || !destination) {
     return (
@@ -189,7 +204,8 @@ export default function FlightInfo() {
                 <View>
                   <Text className="text-caption text-ink opacity-50">To</Text>
                   <Text className="text-body text-ink">
-                    {destination.city}, {destination.country} (
+                    {destination.city}
+                    {destination.country ? `, ${destination.country}` : ""} (
                     {destination.code})
                   </Text>
                 </View>
@@ -205,7 +221,10 @@ export default function FlightInfo() {
                   {flight.price} {flight.currency}
                 </Text>
                 <Text className="text-[12px] text-ink opacity-50">
-                  per person · Sample data
+                  per person ·{" "}
+                  {liveEntry
+                    ? `Live · Google Flights · ${new Date(liveEntry.checkedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+                    : "Sample data"}
                 </Text>
               </View>
             </View>
@@ -219,13 +238,32 @@ export default function FlightInfo() {
       >
         <Pressable
           accessibilityRole="button"
-          className="flex-row items-center justify-center gap-sm rounded-full bg-cobalt-500 py-md"
+          accessibilityLabel={
+            liveEntry
+              ? `Open on Google Flights, ${flight.airline}, ${flight.price} ${flight.currency}`
+              : undefined
+          }
+          onPress={
+            liveEntry
+              ? () => {
+                  // Afar never books or pays: Google Flights takes it from here (AC-12).
+                  posthog?.capture("live_booking_opened", {
+                    price_level: liveEntry.priceLevel ?? null,
+                  });
+                  void WebBrowser.openBrowserAsync(
+                    flight.bookingUrl ?? googleFlightsSearchUrl(flight),
+                  );
+                }
+              : undefined
+          }
+          className="flex-row items-center justify-center gap-sm rounded-full bg-cobalt-500 py-md min-h-[44px]"
           style={({ pressed }) =>
             pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
           }
         >
           <Text className="text-[14px] font-jakarta-bold text-white">
-            Select flight · {flight.price} {flight.currency}
+            {liveEntry ? "Open on Google Flights" : "Select flight"} ·{" "}
+            {flight.price} {flight.currency}
           </Text>
         </Pressable>
       </View>

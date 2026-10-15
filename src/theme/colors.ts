@@ -3,6 +3,7 @@ export const colors = {
   cloud: "#F1F4F9",
   line: "#E5E7EB",
   go: "#1C9A6C",
+  go50: "#E5F5EE",
   cobalt: {
     50: "#EEF2FE",
     100: "#DCE5FD",

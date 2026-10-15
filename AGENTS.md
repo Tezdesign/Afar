@@ -78,7 +78,7 @@ as current.
 
 - Routes live under `src/app/` (Expo Router, typed routes + React Compiler experiments on), not a
   root `app/`: `(auth)/` (`email.tsx` → `verify.tsx`, OTP sign-in), `(tabs)/` (`index`, `saved`,
-  `trips`, `profile`), plus root-level `search.tsx`, `flight/[id].tsx`, `assistant.tsx`, and
+  `trips`, `profile`), plus root-level `search.tsx`, `results.tsx`, `flight/[id].tsx`, `assistant.tsx`, and
   `onboarding.tsx`, and `api/*+api.ts` for server routes. Read `src/app/(tabs)/_layout.tsx` for the
   current tab list rather than trusting one enumerated here.
 - Screens are mostly self-contained (up to ~400 lines, e.g. `src/app/(tabs)/index.tsx`,
@@ -189,6 +189,8 @@ Declined: none recorded
 ## Context files
 
 <!-- Nested AGENTS.md files are listed here as they are created -->
+
+- [supabase/AGENTS.md](supabase/AGENTS.md) (migrations, row level security, the seed, the isolation test and the Clerk webhook Edge Function)
 
 _Rewritten from the repo's real structure — this replaces a generic template that described a
 `components/`/`hooks/`/`lesson/` layout this project never had. Worth a quick human pass. Edit

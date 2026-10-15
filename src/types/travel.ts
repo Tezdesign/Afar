@@ -31,9 +31,36 @@ export interface Flight {
   durationMinutes: number;
   /** 0 = direct */
   stops: number;
-  /** Where the row came from; "sample" for the seeded catalog */
+  /** Where the row came from; "sample" for the seeded catalog, "live" from /api/flights */
   source?: string;
+  /** Live route flights only: local departure time, "HH:MM" */
+  departTime?: string;
+  /** Live only: a Google Flights link for this flight */
+  bookingUrl?: string;
+  /** Live deals only: city name, for destinations outside the airport catalog */
+  destinationCity?: string;
+  /** Live deals only: Google's "% below the usual price" */
+  discountPercent?: number;
 }
+
+export type LiveFallbackReason =
+  | "quota"
+  | "rate_limit"
+  | "error"
+  | "not_configured";
+
+/** What GET /api/flights answers (spec 0003). */
+export type LiveSearchResponse =
+  | {
+      status: "live";
+      flights: Flight[];
+      /** ISO time the prices were fetched from SerpApi */
+      checkedAt: string;
+      cached: boolean;
+      priceLevel?: "low" | "typical" | "high";
+      typicalRange?: [number, number];
+    }
+  | { status: "fallback"; reason: LiveFallbackReason };
 
 export interface Hotel {
   id: string;

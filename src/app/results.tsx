@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DataLabel } from "@/components/dataLabel";
 import { FieldPicker } from "@/components/fieldPicker";
+import { LiveLine, type LiveLineType } from "@/components/liveLine";
 import { LoadError } from "@/components/loadError";
 import { SearchChipRow } from "@/components/searchChipRow";
 import { SkeletonBar, SkeletonCard } from "@/components/skeleton";
@@ -13,11 +14,48 @@ import { parseISODate } from "@/lib/dates";
 import { catalog } from "@/lib/db";
 import { posthog } from "@/lib/posthog";
 import type { Field } from "@/lib/searchChips";
+import { withReasons } from "@/lib/searchFlights";
 import { useAsync } from "@/lib/useAsync";
+import { useLiveFlights, type LiveState } from "@/lib/useLiveFlights";
 import { useAirportStore } from "@/store/airportStore";
 import { useSearchStore } from "@/store/searchStore";
 import { colors } from "@/theme/colors";
 import { CARD_SHADOW } from "@/theme/shadow";
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+const PRICE_LEVEL = {
+  low: { type: "priceLow", text: "Low for this route, per Google" },
+  typical: { type: "priceTypical", text: "Typical for this route, per Google" },
+  high: { type: "priceHigh", text: "High for this route, per Google" },
+} as const;
+
+const formatDuration = (minutes: number) =>
+  `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+
+/** The one status line above the list (spec 0003, AC-9, AC-10). */
+const liveLineFor = (live: LiveState): { type: LiveLineType; text: string } | null => {
+  if (live.status === "loading") return { type: "loading", text: "Checking live prices" };
+  if (live.status === "hint")
+    return live.hint === "no_origin"
+      ? { type: "hint", text: "Pick a starting airport for live prices" }
+      : live.hint === "no_date"
+        ? { type: "hint", text: "Pick a date for live prices" }
+        : null;
+  const r = live.response;
+  if (r.status === "fallback")
+    return r.reason === "quota"
+      ? { type: "paused", text: "Live prices are paused for this month" }
+      : r.reason === "rate_limit"
+        ? { type: "paused", text: "Live prices are paused for today" }
+        : r.reason === "error"
+          ? { type: "unavailable", text: "Live prices are unavailable right now" }
+          : null;
+  if (r.flights.length === 0)
+    return { type: "hint", text: "Google Flights has no live prices for this search" };
+  return r.priceLevel ? PRICE_LEVEL[r.priceLevel] : null;
+};
 
 const formatDate = (iso: string, weekday = false) =>
   parseISODate(iso).toLocaleDateString("en-US", {
@@ -34,8 +72,8 @@ export default function Results() {
   const airports = useAirportStore((s) => s.airports);
   const [picker, setPicker] = useState<Field | null>(null);
 
-  const cityOf = (code: string) =>
-    airports.find((a) => a.code === code)?.city ?? code;
+  const cityOf = (code: string, fallback?: string) =>
+    airports.find((a) => a.code === code)?.city ?? fallback ?? code;
 
   // Only the fields that filter flights, so editing something else (such as
   // dismissing a "not understood" chip) does not search again.
@@ -53,9 +91,57 @@ export default function Results() {
     () => catalog.searchFlights(params),
     searchKey,
   );
-  const results = state.status === "ready" ? state.data.results : [];
+  const live = useLiveFlights(params, searchKey);
+  const liveAnswer = live.state.status === "done" ? live.state.response : null;
+  const liveSet =
+    liveAnswer?.status === "live" && liveAnswer.flights.length > 0 ? liveAnswer : null;
+  const liveLine = liveLineFor(live.state);
+
+  // A month only route search goes live on a date the app picked. Make it a
+  // real, editable date chip (contract rule 3) instead of a hidden guess.
+  const { chosenDate } = live;
+  useEffect(() => {
+    if (chosenDate) setSearchParams({ departDate: chosenDate, month: null });
+  }, [chosenDate, setSearchParams]);
+
+  // Live replaces sample once it has flights (AC-7). Reasons are computed
+  // within the live set only; Google's discount wins for a deal (AC-10).
+  const liveResults = liveSet
+    ? withReasons([...liveSet.flights].sort((a, b) => a.price - b.price)).map((r) =>
+        r.flight.discountPercent
+          ? { ...r, reason: `${r.flight.discountPercent}% below usual, per Google` }
+          : r,
+      )
+    : null;
+  const liveLabel = liveSet ? `Live · ${formatTime(liveSet.checkedAt)}` : null;
+
+  const liveEvent =
+    live.state.status === "hint" && live.state.hint === "no_origin"
+      ? "no_origin"
+      : liveAnswer?.status === "fallback"
+        ? liveAnswer.reason
+        : liveAnswer?.status === "live"
+          ? "live"
+          : null;
+  const liveCount = liveAnswer?.status === "live" ? liveAnswer.flights.length : 0;
+  const liveCached = liveAnswer?.status === "live" && liveAnswer.cached;
+  const livePriceLevel = (liveAnswer?.status === "live" && liveAnswer.priceLevel) || null;
+  const liveAnywhere = live.anywhere;
+  useEffect(() => {
+    if (!liveEvent) return;
+    if (liveEvent === "live")
+      posthog?.capture("live_prices_loaded", {
+        count: liveCount,
+        cached: liveCached,
+        anywhere: liveAnywhere,
+        price_level: livePriceLevel,
+      });
+    else posthog?.capture("live_prices_fallback", { reason: liveEvent });
+  }, [liveEvent, liveCount, liveCached, liveAnywhere, livePriceLevel]);
+
+  const results = liveResults ?? (state.status === "ready" ? state.data.results : []);
   const suggestions = state.status === "ready" ? state.data.suggestions : [];
-  const none = state.status === "ready" && results.length === 0;
+  const none = !liveResults && state.status === "ready" && results.length === 0;
 
   // Fires when results arrive and whenever an edit changes the list.
   const resultCount = state.status === "ready" ? results.length : null;
@@ -95,7 +181,9 @@ export default function Results() {
 
         <SearchChipRow compact onEdit={setPicker} />
 
-        {state.status === "loading" ? (
+        {liveLine && <LiveLine type={liveLine.type} text={liveLine.text} />}
+
+        {liveResults ? null : state.status === "loading" ? (
           <>
             <SkeletonBar className="h-4 w-[140px]" />
             <SkeletonCard />
@@ -149,11 +237,15 @@ export default function Results() {
               <Text className="text-body text-cobalt-500">Edit search</Text>
             </Pressable>
           </>
-        ) : (
+        ) : null}
+
+        {(liveResults || (state.status === "ready" && !none)) && (
           <>
             <Text className="text-caption text-ink opacity-50">
-              {results.length} result{results.length === 1 ? "" : "s"} · cheapest
-              first
+              {results.length}{" "}
+              {liveResults && live.anywhere ? "deal" : "result"}
+              {results.length === 1 ? "" : "s"}
+              {liveResults ? " · Google Flights" : ""} · cheapest first
             </Text>
             {results.map(({ flight, reason }, index) => (
               <Pressable
@@ -172,7 +264,7 @@ export default function Results() {
                 <View className="flex-row items-center gap-sm">
                   <Text className="flex-1 text-body text-ink">
                     {cityOf(flight.originCode)} →{" "}
-                    {cityOf(flight.destinationCode)}
+                    {cityOf(flight.destinationCode, flight.destinationCity)}
                   </Text>
                   <Text className="text-numeric text-ink">
                     {flight.price} {flight.currency}
@@ -182,6 +274,9 @@ export default function Results() {
                   {flight.returnDate
                     ? `${formatDate(flight.departDate)} – ${formatDate(flight.returnDate)} · Round trip`
                     : `${formatDate(flight.departDate, true)} · One way`}
+                  {flight.departTime
+                    ? ` · ${flight.departTime} · ${formatDuration(flight.durationMinutes)}`
+                    : ""}
                   {" · "}
                   {flight.airline}
                 </Text>
@@ -201,7 +296,7 @@ export default function Results() {
                   </View>
                 )}
                 <View className="items-end">
-                  <DataLabel />
+                  <DataLabel label={liveLabel ?? undefined} />
                 </View>
               </Pressable>
             ))}
