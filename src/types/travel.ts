@@ -9,7 +9,10 @@ export interface Airport {
   /** IATA code, e.g. "TUN" */
   code: string;
   city: string;
+  /** Display name, derived from countryCode */
   country: string;
+  /** ISO 3166-1 alpha-2, e.g. "TN" */
+  countryCode: string;
 }
 
 export interface Flight {
@@ -28,6 +31,8 @@ export interface Flight {
   durationMinutes: number;
   /** 0 = direct */
   stops: number;
+  /** Where the row came from; "sample" for the seeded catalog */
+  source?: string;
 }
 
 export interface Hotel {

@@ -39,6 +39,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor: string
+          created_at: string
+          id: string
+          payload: Json
+          summary: string
+          undone_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          actor: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          summary: string
+          undone_at?: string | null
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          summary?: string
+          undone_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       airports: {
         Row: {
           city: string
@@ -56,6 +89,69 @@ export type Database = {
           country_code?: string
         }
         Relationships: []
+      }
+      alerts: {
+        Row: {
+          anywhere: boolean
+          created_at: string
+          destination: string | null
+          direct_only: boolean
+          id: string
+          is_demo: boolean
+          last_checked_at: string | null
+          max_price: number | null
+          month: string | null
+          nights: number | null
+          origin: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          anywhere?: boolean
+          created_at?: string
+          destination?: string | null
+          direct_only?: boolean
+          id?: string
+          is_demo?: boolean
+          last_checked_at?: string | null
+          max_price?: number | null
+          month?: string | null
+          nights?: number | null
+          origin?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          anywhere?: boolean
+          created_at?: string
+          destination?: string | null
+          direct_only?: boolean
+          id?: string
+          is_demo?: boolean
+          last_checked_at?: string | null
+          max_price?: number | null
+          month?: string | null
+          nights?: number | null
+          origin?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_destination_fkey"
+            columns: ["destination"]
+            isOneToOne: false
+            referencedRelation: "airports"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "alerts_origin_fkey"
+            columns: ["origin"]
+            isOneToOne: false
+            referencedRelation: "airports"
+            referencedColumns: ["code"]
+          },
+        ]
       }
       car_rentals: {
         Row: {
@@ -300,6 +396,196 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          currency: string
+          language: string
+          passport_country: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          currency?: string
+          language?: string
+          passport_country?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          currency?: string
+          language?: string
+          passport_country?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          id: string
+          last_seen_at: string
+          platform: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_seen_at?: string
+          platform: string
+          token: string
+          user_id?: string
+        }
+        Update: {
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      recent_searches: {
+        Row: {
+          anywhere: boolean
+          created_at: string
+          depart_date: string | null
+          destination: string | null
+          direct_only: boolean
+          id: string
+          max_price: number | null
+          month: string | null
+          nights: number | null
+          origin: string | null
+          return_date: string | null
+          user_id: string
+        }
+        Insert: {
+          anywhere?: boolean
+          created_at?: string
+          depart_date?: string | null
+          destination?: string | null
+          direct_only?: boolean
+          id?: string
+          max_price?: number | null
+          month?: string | null
+          nights?: number | null
+          origin?: string | null
+          return_date?: string | null
+          user_id?: string
+        }
+        Update: {
+          anywhere?: boolean
+          created_at?: string
+          depart_date?: string | null
+          destination?: string | null
+          direct_only?: boolean
+          id?: string
+          max_price?: number | null
+          month?: string | null
+          nights?: number | null
+          origin?: string | null
+          return_date?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      saved_destinations: {
+        Row: {
+          created_at: string
+          destination_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          destination_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_destinations_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "destinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_destinations_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "destinations_with_price"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          booked_at: string
+          car_id: string | null
+          flight_id: string | null
+          hotel_id: string | null
+          id: string
+          snapshot_currency: string
+          snapshot_details: Json
+          snapshot_price: number
+          snapshot_title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          booked_at?: string
+          car_id?: string | null
+          flight_id?: string | null
+          hotel_id?: string | null
+          id?: string
+          snapshot_currency: string
+          snapshot_details?: Json
+          snapshot_price: number
+          snapshot_title: string
+          type: string
+          user_id?: string
+        }
+        Update: {
+          booked_at?: string
+          car_id?: string | null
+          flight_id?: string | null
+          hotel_id?: string | null
+          id?: string
+          snapshot_currency?: string
+          snapshot_details?: Json
+          snapshot_price?: number
+          snapshot_title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_car_id_fkey"
+            columns: ["car_id"]
+            isOneToOne: false
+            referencedRelation: "car_rentals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_flight_id_fkey"
+            columns: ["flight_id"]
+            isOneToOne: false
+            referencedRelation: "flights"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_hotel_id_fkey"
+            columns: ["hotel_id"]
+            isOneToOne: false
+            referencedRelation: "hotels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       deals_with_price: {
@@ -373,7 +659,7 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      delete_user_data: { Args: { p_user_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

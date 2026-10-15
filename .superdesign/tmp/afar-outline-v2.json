@@ -1,0 +1,17 @@
+{
+  "title": "Afar: Your Trip, Out Loud",
+  "summary": "An 11-slide investor/demo-day pitch for Afar, a travel app combining flight, hotel and car search with a voice AI trip assistant. Narrative: problem, product, tech stack, trust, roadmap.",
+  "slides": [
+    {"title": "Afar", "prompt": "Title slide with the Afar logo and mascot. Tagline: 'Plan the trip by talking to it'. Subline: 'Search flights, hotels and cars, with an AI that listens.'"},
+    {"title": "Travel planning is still a pile of tabs", "prompt": "The problem: comparing flights, hotels and cars means many tabs, filters and repeated searches, and nothing helps you decide."},
+    {"title": "Meet Afar", "prompt": "One app that covers flights, hotels and cars and keeps your trips and saved deals together. Show the tab structure: Home, Saved, Trips, Profile, in a phone mockup."},
+    {"title": "Search that stays out of your way", "prompt": "The search flow: pick airports, dates and passengers, then see results and a flight detail page. Deals and destinations on Home."},
+    {"title": "Talk to your trip", "prompt": "The voice AI trip assistant. The user speaks and it answers in real time over a live call, using Stream Video and Gemini Realtime. Each user gets a personal call room."},
+    {"title": "Speaks your language", "prompt": "Native-language support: the user picks a language and the app and the assistant follow it."},
+    {"title": "Yours, and only yours", "prompt": "Accounts with Clerk (email plus one-time code). Saved deals and trips are kept per account, and a different account on the same device never sees them."},
+    {"title": "The tech stack", "prompt": "Four layer cards. App: Expo SDK 57, React Native 0.86, React 19, Expo Router, NativeWind v5 + Tailwind v4, Zustand v5. Identity and analytics: Clerk, PostHog. Realtime AI: Stream Video, Gemini Realtime, Vision Agents (Python). Data: Supabase Postgres, catalog schema in progress."},
+    {"title": "Built to be trusted", "prompt": "Architecture diagram of how the stack layers connect: Expo client to server-side API routes (secrets and paid calls stay there, after verifying the Clerk session) to the separate Python agent service that runs the AI."},
+    {"title": "Built feature by feature", "prompt": "Roadmap. Ships today: sample-data search for flights/hotels/cars, voice assistant, accounts. Next: live flight/hotel/car data from Supabase, bookings, price alerts."},
+    {"title": "Let's take Afar further", "prompt": "Closing call to action with the logo and mascot, a one-line recap, and a contact/next-step placeholder."}
+  ]
+}
