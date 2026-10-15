@@ -1,22 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useUser } from "@clerk/expo";
+import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import {
-  Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Pressable,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Chip } from "@/components/chip";
+import { DataLabel } from "@/components/dataLabel";
+import { images } from "@/constants/images";
 import { deals } from "@/data/deals";
 import { destinations } from "@/data/destinations";
 import { flights } from "@/data/flights";
@@ -28,7 +20,8 @@ import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
 import { useSearchStore } from "@/store/searchStore";
 import { useTripsStore } from "@/store/tripsStore";
-import type { Deal, DealType } from "@/types/travel";
+import { colors } from "@/theme/colors";
+import type { Deal } from "@/types/travel";
 
 const CARD_SHADOW = {
   shadowColor: "#17181F",
@@ -38,65 +31,26 @@ const CARD_SHADOW = {
   elevation: 2,
 } as const;
 
-const SCRIM_COLORS = [
-  "rgba(13,20,38,0)",
-  "rgba(8,12,24,0.78)",
-] as const;
-
-const DEAL_ICON: Record<DealType, keyof typeof Ionicons.glyphMap> = {
-  flight: "airplane",
-  hotel: "bed",
-  car: "car-sport",
-};
-
-// Segmented mode switch. Keys are DealType values so filtering the feed
-// is a direct `deal.type === mode` check.
-const MODES = [
-  { key: "flight", label: "Flights", heading: "Flight deals", icon: "airplane" },
-  { key: "hotel", label: "Hotels", heading: "Hotel deals", icon: "bed" },
-  { key: "car", label: "Cars", heading: "Car deals", icon: "car-sport" },
-] as const satisfies readonly {
-  key: DealType;
-  label: string;
-  heading: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}[];
+// Header wash from the Figma frame: cobalt-100 fading into the page.
+const WASH = ["rgba(220,229,253,0.9)", "rgba(241,244,249,0)"] as const;
 
 const PAGE_GAP = 12;
+
+// Only flights can be searched, so only flight deals are ideas.
+const IDEAS = deals.filter((deal) => deal.type === "flight");
 
 export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useUser();
-  const { width } = useWindowDimensions();
+  const { isSignedIn } = useAuth();
 
-  const [mode, setMode] = useState<DealType>("flight");
-  const [activeDeal, setActiveDeal] = useState(0);
   // Selector-only reads per the store architecture: never the whole store.
   const savedIds = useSavedStore((state) => state.savedIds);
   const toggleSaved = useSavedStore((state) => state.toggleSaved);
 
-  const activeMode = MODES.find((m) => m.key === mode) ?? MODES[0];
-  // Hero carousel = every deal for the active mode. "Trending now" = the
-  // non-featured deals from the *other* modes, so nothing shows twice and
-  // the list doubles as a cross-category nudge (booked a flight? here's a
-  // hotel).
-  const modeDeals = deals.filter((deal) => deal.type === mode);
-  const trendingDeals = deals.filter(
-    (deal) => deal.type !== mode && !deal.featured,
-  );
-
-  const cardWidth = width - 48; // matches px-lg (24px) on both sides
-
-  const onDealsScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(
-      event.nativeEvent.contentOffset.x / (cardWidth + PAGE_GAP),
-    );
-    setActiveDeal(index);
-  };
-
   // Every way into Search clears the old search first, so old chips never
-  // leak into a new one.
+  // leak into a new one. Home never parses text itself: the sentence goes
+  // through submitSentence, which Search shares.
   const resetSearch = useSearchStore((state) => state.reset);
   const setSearchParams = useSearchStore((state) => state.setSearchParams);
 
@@ -115,14 +69,11 @@ export default function Home() {
     router.push({ pathname: "/search", params: { q: sentence } });
   };
 
-  // A flight deal opens Search with only its destination filled. Hotel and
-  // car deals, and a flight that can't be found, open an empty Search.
+  // A flight deal opens Search with only its destination filled. A flight
+  // that can't be found opens an empty Search.
   const openDeal = (deal: Deal) => {
     resetSearch();
-    const flight =
-      deal.type === "flight"
-        ? flights.find((f) => f.id === deal.refId)
-        : undefined;
+    const flight = flights.find((f) => f.id === deal.refId);
     if (!flight) {
       router.push("/search");
       return;
@@ -131,89 +82,86 @@ export default function Home() {
     router.push({ pathname: "/search", params: { source: "deal" } });
   };
 
-  const switchMode = (next: DealType) => {
-    setMode(next);
-    setActiveDeal(0);
-  };
-
   return (
-    <View
-      className="flex-1 bg-cloud"
-      style={{ paddingTop: insets.top + 12 }}
-    >
+    <View className="flex-1 bg-cloud">
+      <LinearGradient
+        colors={WASH}
+        pointerEvents="none"
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 300 }}
+      />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 32,
+        }}
       >
-        <View className="px-lg flex-row items-center justify-between mb-lg">
-          <View className="flex-row items-center gap-sm flex-1">
-            {/* className doesn't reach Image's width/height (no NativeWind
-                interop for that prop on this component) — sized via style
-                per AGENTS.md's style-exception rule. */}
+        <View className="px-lg gap-md">
+          <View className="flex-row items-center justify-between">
+            {/* className doesn't reach Image's width/height, so it is sized
+                via style per AGENTS.md's style-exception rule. */}
             <Image
-              source={{ uri: user?.imageUrl }}
-              style={{ width: 44, height: 44, borderRadius: 22 }}
+              source={images.afarLogoMark}
+              accessibilityLabel="Afar"
+              style={{ width: 36, height: 36 }}
             />
-            <View className="flex-1">
-              <Text className="text-title text-ink">
-                Hello, {user?.firstName ?? "there"}
+            {!isSignedIn && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push("/onboarding")}
+                hitSlop={12}
+              >
+                <Text className="text-body text-cobalt-500">Sign in</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <Text className="text-display text-ink">Where to?</Text>
+          <View className="h-[3px] w-12 rounded-sm bg-cobalt-500" />
+
+          <View className="bg-white rounded-lg p-md gap-sm" style={CARD_SHADOW}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Describe your trip"
+              onPress={startSearch}
+              className="gap-sm"
+            >
+              <Text className="text-caption text-ink opacity-50">
+                Describe your trip
               </Text>
-              <Text className="text-body text-ink opacity-60">
-                Where to next?
+              <View className="flex-row items-center gap-sm">
+                <Text className="flex-1 text-body text-ink opacity-40">
+                  Try “{EXAMPLE_PROMPTS[0]}”
+                </Text>
+                <View className="w-10 h-10 items-center justify-center rounded-full bg-cobalt-100">
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color={colors.cobalt[300]}
+                  />
+                </View>
+              </View>
+            </Pressable>
+            <View className="h-px bg-line" />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/assistant")}
+              className="flex-row items-center gap-sm self-start py-xs"
+            >
+              <Ionicons
+                name="chatbubble-outline"
+                size={18}
+                color={colors.cobalt[500]}
+              />
+              <Text className="text-[14px] font-jakarta-medium text-cobalt-500">
+                Prefer to talk it through? Ask Afar
               </Text>
-            </View>
+            </Pressable>
           </View>
 
-          <View
-            className="w-10 h-10 items-center justify-center rounded-full bg-white"
-            style={CARD_SHADOW}
-          >
-            <Ionicons name="notifications" size={18} color="#17181F" />
-            <View className="absolute top-2 right-2 w-2 h-2 rounded-full bg-ember-500" />
-          </View>
-        </View>
-
-        {__DEV__ && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={async () => {
-              await AsyncStorage.clear();
-              useAuthStore.getState().reset();
-              useSavedStore.getState().clearSaved();
-              useTripsStore.getState().clearTrips();
-              usePreferencesStore.setState({ language: "en", currency: "USD" });
-            }}
-            className="mx-lg mb-sm items-center justify-center rounded-full border border-line py-xs"
-          >
-            <Text className="text-[11px] font-jakarta-bold text-ink opacity-40">
-              Dev: clear stored state
-            </Text>
-          </Pressable>
-        )}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Search ${activeMode.label.toLowerCase()}`}
-          onPress={startSearch}
-          className="mx-lg mb-md flex-row items-center gap-sm"
-        >
-          <View
-            className="flex-1 flex-row items-center gap-sm bg-white rounded-full px-md py-md"
-            style={CARD_SHADOW}
-          >
-            <Ionicons name="search" size={18} color="#17181F" />
-            <Text className="text-body text-ink opacity-50">
-              Search {activeMode.label.toLowerCase()}…
-            </Text>
-          </View>
-          <View className="w-11 h-11 items-center justify-center rounded-full bg-cobalt-500">
-            <Ionicons name="options" size={18} color="#fff" />
-          </View>
-        </Pressable>
-
-        {mode === "flight" && (
-          <View className="mx-lg mb-md flex-row flex-wrap gap-sm">
-            {EXAMPLE_PROMPTS.map((example) => (
+          <View className="flex-row flex-wrap gap-sm">
+            {EXAMPLE_PROMPTS.slice(1).map((example) => (
               <Chip
                 key={example}
                 variant="suggestion"
@@ -222,114 +170,48 @@ export default function Home() {
               />
             ))}
           </View>
-        )}
 
-        {/* Segmented mode switch — solid-filled active pill on a white
-            track, the house pattern for category switching. */}
-        <View
-          className="mx-lg mb-lg flex-row bg-white rounded-full p-xs"
-          style={CARD_SHADOW}
-        >
-          {MODES.map((m) => {
-            const active = m.key === mode;
-            return (
-              <Pressable
-                key={m.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => switchMode(m.key)}
-                className={`flex-1 flex-row items-center justify-center gap-xs py-sm rounded-full ${
-                  active ? "bg-cobalt-500" : ""
-                }`}
-              >
-                <Ionicons
-                  name={m.icon}
-                  size={16}
-                  color={active ? "#fff" : "#17181F"}
-                />
-                <Text
-                  className={`text-[13px] font-jakarta-bold ${
-                    active ? "text-white" : "text-ink opacity-55"
-                  }`}
-                >
-                  {m.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Text className="text-title text-ink">Ideas to start from</Text>
         </View>
 
-        <View className="flex-row items-center justify-between px-lg mb-md">
-          <Text className="text-title text-ink">{activeMode.heading}</Text>
-          <Pressable accessibilityRole="button" onPress={openSearch}>
-            <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
-              See all
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* key={mode} remounts the rail so it snaps back to the first card
-            whenever the mode changes. */}
         <ScrollView
-          key={mode}
           horizontal
-          decelerationRate="fast"
-          snapToInterval={cardWidth + PAGE_GAP}
           showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onDealsScroll}
-          contentContainerStyle={{ paddingHorizontal: 24, gap: PAGE_GAP }}
+          contentContainerStyle={{
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 8,
+            gap: 16,
+          }}
         >
-          {modeDeals.map((deal) => (
+          {IDEAS.map((deal) => (
             <Pressable
               key={deal.id}
               accessibilityRole="button"
+              accessibilityLabel={`${deal.title}, from ${deal.price} ${deal.currency}, sample data`}
               onPress={() => openDeal(deal)}
-              className="rounded-lg overflow-hidden"
-              style={[{ width: cardWidth, height: 188 }, CARD_SHADOW]}
+              className="bg-white rounded-lg overflow-hidden"
+              style={[{ width: 180, height: 200 }, CARD_SHADOW]}
             >
               <Image
                 source={{ uri: deal.imageUrl }}
                 resizeMode="cover"
-                style={{ width: "100%", height: "100%", position: "absolute" }}
+                style={{ width: "100%", height: 100 }}
               />
-              <LinearGradient
-                colors={SCRIM_COLORS}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0.7 }}
-                style={{ flex: 1, padding: 16, justifyContent: "space-between" }}
-              >
-                <View />
-
-                <View>
-                  <Text className="text-title text-white">{deal.title}</Text>
-                  <Text className="text-body text-white opacity-80 mb-sm">
-                    {deal.subtitle}
-                  </Text>
-                  <View className="self-start bg-white rounded-full px-md py-sm">
-                    <Text className="text-[13px] font-jakarta-bold text-ink">
-                      From {deal.price} {deal.currency}
-                    </Text>
-                  </View>
-                </View>
-              </LinearGradient>
+              <View className="gap-xs" style={{ padding: PAGE_GAP }}>
+                <Text className="text-body text-ink" numberOfLines={1}>
+                  {deal.title}
+                </Text>
+                <Text className="text-[14px] font-jakarta-medium text-ink opacity-60">
+                  From {deal.price} {deal.currency}
+                </Text>
+                <DataLabel />
+              </View>
             </Pressable>
           ))}
         </ScrollView>
 
-        {modeDeals.length > 1 && (
-          <View className="flex-row items-center justify-center gap-sm mt-sm mb-lg">
-            {modeDeals.map((deal, index) => (
-              <View
-                key={deal.id}
-                className={`h-2 rounded-full ${
-                  index === activeDeal ? "w-4 bg-cobalt-500" : "w-2 bg-line"
-                }`}
-              />
-            ))}
-          </View>
-        )}
-
-        <View className="flex-row items-center justify-between px-lg mt-lg mb-md">
+        <View className="flex-row items-center justify-between px-lg mt-xl mb-md">
           <Text className="text-title text-ink">Popular destinations</Text>
           <Pressable accessibilityRole="button" onPress={openSearch}>
             <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
@@ -409,43 +291,23 @@ export default function Home() {
           })}
         </ScrollView>
 
-        <View className="flex-row items-center justify-between px-lg mt-lg mb-md">
-          <Text className="text-title text-ink">Trending now</Text>
-          <Pressable accessibilityRole="button" onPress={openSearch}>
-            <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
-              See all
+        {__DEV__ && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={async () => {
+              await AsyncStorage.clear();
+              useAuthStore.getState().reset();
+              useSavedStore.getState().clearSaved();
+              useTripsStore.getState().clearTrips();
+              usePreferencesStore.setState({ language: "en", currency: "USD" });
+            }}
+            className="mx-lg mt-xl items-center justify-center rounded-full border border-line py-xs"
+          >
+            <Text className="text-[11px] font-jakarta-bold text-ink opacity-40">
+              Dev: clear stored state
             </Text>
           </Pressable>
-        </View>
-
-        <View className="px-lg gap-sm">
-          {trendingDeals.map((deal) => (
-            <Pressable
-              key={deal.id}
-              accessibilityRole="button"
-              onPress={() => openDeal(deal)}
-              className="flex-row items-center gap-sm bg-white rounded-md p-md"
-              style={CARD_SHADOW}
-            >
-              <View className="w-11 h-11 items-center justify-center rounded-full bg-cobalt-50">
-                <Ionicons name={DEAL_ICON[deal.type]} size={18} color="#1D4FD6" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-[14px] font-jakarta-bold text-ink">
-                  {deal.title}
-                </Text>
-                <Text className="text-[12px] text-ink opacity-50">
-                  {deal.subtitle}
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[14px] font-jakarta-bold text-ink">
-                  {deal.price} {deal.currency}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
+        )}
       </ScrollView>
     </View>
   );

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,6 +17,7 @@ const TAB_BAR_HEIGHT = 58;
 
 export default function TabsLayout() {
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
   // No blanket auth guard here — Home and Search are open to guests.
@@ -72,16 +73,18 @@ export default function TabsLayout() {
 
       {/* Global entry point for the trip assistant (chat + voice, not tied
           to any one tab) — floats above the tab bar on every tab per the
-          confirmed IA. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open trip assistant"
-        onPress={() => router.push("/assistant")}
-        className="absolute right-lg w-14 h-14 items-center justify-center rounded-full bg-cobalt-500"
-        style={[{ bottom: TAB_BAR_HEIGHT + insets.bottom + 16 }, FAB_SHADOW]}
-      >
-        <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-      </Pressable>
+          confirmed IA. Home has its own "Ask Afar" link instead. */}
+      {pathname !== "/" && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open trip assistant"
+          onPress={() => router.push("/assistant")}
+          className="absolute right-lg w-14 h-14 items-center justify-center rounded-full bg-cobalt-500"
+          style={[{ bottom: TAB_BAR_HEIGHT + insets.bottom + 16 }, FAB_SHADOW]}
+        >
+          <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+        </Pressable>
+      )}
     </View>
   );
 }

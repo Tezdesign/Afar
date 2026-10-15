@@ -10,19 +10,21 @@ This umbrella turns the UX work (empathize, define, ideate, prototype, and a res
 ## Structure
 
 - [0001-natural-language-search.md](0001-natural-language-search.md): a typed trip becomes editable chips, then honest flight results. Local only, no database. Supports outcomes O-1 and O-2.
-- [0002-passport-and-visa.md](0002-passport-and-visa.md): a passport setting, a small curated and honestly labelled visa rule list, badges and a visa card, and the in context passport prompt. Local only, no database. Supports outcome O-3.
+- [0002-passport-and-visa.md](0002-passport-and-visa.md): a passport setting, visa badges and a visa card, and the in context passport prompt. Visa data from the open Passport Index dataset through `GET /api/visa-data`. The passport starts on the device and moves to the account profile in 0004. Supports outcome O-3.
+- [0003-live-flight-prices.md](0003-live-flight-prices.md): live flight prices from Google Flights through SerpApi and `GET /api/flights`, sample data first and as the fallback, with monthly and per device caps. Supports outcomes O-2 and O-3.
+- [0004-supabase-database-and-clerk-link.md](0004-supabase-database-and-clerk-link.md): the Supabase database behind Clerk: the sample catalog, saved, trips, profile (with the passport), alerts, activity log, recent searches and push tokens, search filtering in the database, the sign in gate at the heart, and a Clerk deletion webhook. Slice four, built after 0002 and before 0003. Supports outcomes O-1 and O-4.
 
 Planned children, not written yet (each gets its own `/architect` session when its turn comes):
 
 | Order | Slice | Supports | Needs first |
 |---|---|---|---|
-| 2 | Passport and visa awareness (written, see 0002 above): `passportCountry`, picker, curated visa list with source and last checked date, badges, the in context passport prompt on Results | O-3 | Slice one (Results exists). Stays on the device at first. A verified visa source before shipping |
-| 3 | Guest access and sign in on demand: Saved and Trips stop redirecting, a sign in prompt appears at save, alert or book | O-1 | Slice one. Rework of the onboarding screen into that prompt |
-| 4 | Supabase and Clerk link: how Supabase learns the Clerk user, profile, alerts and the activity log tables | O-4 | Your sign off for the dependency (granted in principle, see Cross child contract) |
+| 2 | Passport and visa awareness (written, see 0002 above): `passportCountry`, picker, the Passport Index visa data through an API route, badges, the in context passport prompt on Results | O-3 | Slice one (Results exists). The passport stays on the device until slice 4 moves it to the profile. Checking a sample of visa pairs against official pages before shipping |
+| 3 | Guest access and sign in on demand: Saved and Trips stop redirecting and show guest states, and the sign in prompt that slice 4 puts at the heart is improved and reused at alert | O-1 | Slice 4 (it holds the first sign in gate). Rework of the onboarding screen into that prompt |
+| 4 | Supabase and Clerk link (written, see 0004 above): Clerk tokens into Supabase, the catalog, search filtering, saved, trips, profile, alerts, activity log, recent searches, push tokens and account deletion | O-4 | Your sign off for the dependency (given), your Clerk and Supabase dashboard steps, and new Figma states |
 | 5 | Assistant action cards and activity log: Plan, Preview, Confirm cards on the voice call, `create_alert` tool, undo, the Activity screen | O-4 | Slice 4. A price source decision for alerts to be more than a demo |
 | 6 | Later: total trip cost, French and Arabic with right to left, local currency, stale data handling | O-2 | A live price source and layover and fee data |
 
-Recommended order is the table order. Slice 2 comes before 3 because the passport is the most distinctive idea and can stay local. Slice 3 comes before 4 because it changes behavior people see, while 4 is plumbing. Reorder freely, the contract below does not depend on the order.
+Recommended build order: slice 1, slice 2, slice 4, slice 3, then 0003 (live prices), then slice 5, then slice 6. Slice 2 comes before 4 because the passport is the most distinctive idea and can start on the device. Slice 4 comes before 3 because guests cannot save once the data is in the database, so it already needs the sign in gate, and slice 3 then only improves it. 0003 comes after 4 because it reads the catalog from the database. Reorder freely, the contract below does not depend on the order.
 
 ## Requirements
 
@@ -46,17 +48,17 @@ Slice level criteria (`AC-N`) live in each child. These are the umbrella outcome
 Rules every slice must follow:
 
 1. **Say only what the data supports.** No invented history, discount, previous price or urgency. A line such as "Cheapest of 6" is allowed because it is computed from the result set.
-2. **Label the source.** Every price carries "Sample data" until a live price source exists.
+2. **Label the source.** Every price says where it came from: "Sample data", or the live source and the time it was checked (child 0003).
 3. **Show the interpretation.** Anything the app inferred from the user (chips, a passport based badge) is visible and editable.
 4. **Human decides, AI proposes.** Anything with a cost or a commitment ends in a tap, never a spoken yes. Voice is an input mode, the card is the record.
 5. **Unknown is a valid state.** A visa rule with no source shows "Check visa", never a guess.
 6. **Guests first.** Browsing, searching and results never require an account. Sign in is asked at save, alert or book.
-7. **Verify every caller.** Any server route follows the existing shape: `getVerifiedClerkUserId()` first, then the privileged call. Never trust a client supplied user id.
+7. **Verify every caller.** Any server route that acts for a person follows the existing shape: `getVerifiedClerkUserId()` first, then the privileged call. Never trust a client supplied user id. Two kinds of route are exceptions, and each spec says so: public routes with no personal input (`/api/visa-data`, and `/api/flights` with its caps), and signed webhooks (the Clerk deletion webhook in 0004, verified by Clerk's signature).
 
 Shared decisions:
 
-- **Database**: Supabase is approved in principle for Afar's own data (profile, alerts, activity log). It is added only by the slice that needs it, and the Clerk link gets its own spec first. Until then, state stays in Zustand and AsyncStorage, scoped per account as `AGENTS.md` describes.
-- **Price source**: undecided. Until it is, prices are sample data and alerts are simulated and labelled demo.
+- **Database**: Supabase holds the sample catalog and Afar's own data (profile with the passport, saved, trips, alerts, activity log, recent searches, push tokens), added by child 0004 with the Clerk link inside it. Until 0004 is built, state stays in Zustand and AsyncStorage, scoped per account as `AGENTS.md` describes. Live prices (0003) and the visa dataset (0002) are not stored in it.
+- **Price source**: SerpApi Google Flights for search (child 0003), capped at 200 live searches a month. Sample data, held in the database after 0004, stays as the labelled fallback. Price alerts still need their own source decision and stay simulated and labelled demo until then.
 - **Data shapes in `searchStore`**: `origin`, `destination`, `anywhere`, `month`, `nights`, `departDate`, `returnDate`, `maxPrice`, `directOnly`. Later slices add fields, they do not rename these.
 - **New routes across the umbrella**: `/results` (slice 1), `/activity` (slice 5), a passport row in Profile (slice 2). There is no passport step in `/onboarding`: the passport is asked in context, on flight detail and on Results. The assistant stays the global floating button plus the entry inside the search line.
 - **Analytics**: product questions are answered with the existing PostHog instance. The research test list (deals strip, chips against a plain answer, visa badges, sign in timing, voice against text) is run as experiments, not assumed.
@@ -66,11 +68,12 @@ Shared decisions:
 Build approach is **Tracer Bullet**, taken from the engineer's answer (no approach was recorded in `AGENTS.md`, whose Build approach line is still unset). Each child is itself a thin end to end slice.
 
 1. Build child 0001, natural language search and results, satisfies **O-1**, **O-2**.
-2. Build the passport and visa child (written as 0002), satisfies **O-3**.
-3. Write and build the guest access and sign in on demand child, satisfies **O-1**.
-4. Write the Supabase and Clerk link child, then build it, satisfies **O-4**.
-5. Write and build the assistant action cards and activity log child, satisfies **O-4**.
-6. Revisit the Later slice once a price source is chosen, satisfies **O-2**.
+2. Build the passport and visa child (written as 0002), with the passport on the device, satisfies **O-3**.
+3. Build the Supabase and Clerk link child (written as 0004), which also moves the passport to the profile and adds the sign in gate at the heart, satisfies **O-1**, **O-4**.
+4. Write and build the guest access and sign in on demand child, which improves that gate and the guest states of Saved and Trips, satisfies **O-1**.
+5. Build child 0003, live flight prices, reading the catalog from the database, satisfies **O-2**.
+6. Write and build the assistant action cards and activity log child, satisfies **O-4**.
+7. Revisit the Later slice, satisfies **O-2**.
 
 ## Consequences
 
@@ -83,7 +86,7 @@ Build approach is **Tracer Bullet**, taken from the engineer's answer (no approa
 - The strongest idea (the assistant that acts) is last, because it depends on a database and a price source that do not exist yet.
 
 **Neutral**:
-- `AGENTS.md` still says no database unless asked. When slice 4 is written, update that line.
+- `AGENTS.md` still says no database unless asked. Slice 4 is now written (0004), so update that line, and the data rules around it, when 0004 is built.
 - This spec supersedes nothing. `docs/afar-ux/` stays as the design thinking record.
 
 ## Follow-up
@@ -91,7 +94,9 @@ Build approach is **Tracer Bullet**, taken from the engineer's answer (no approa
 - [ ] Run `/scope` to give this umbrella a scope row, since `docs/scope/` does not exist yet and `AGENTS.md` says Build approach is unset.
 - [ ] `docs/afar-ux/README.md` says Ideate and Prototype have not started. Update it, since both are done in Figma and FigJam.
 - [ ] Add the Figma file link and the umbrella spec to `AGENTS.md` (the `/sync` skill owns that file).
-- [ ] The visa values in the prototype are illustrative. A verified source is required before slice 2 ships.
+- [ ] The visa values in the Figma prototype are illustrative. The app now uses the Passport Index dataset (0002), which is real but not official. Before release, compare a sample of pairs with official pages, as 0002 says.
+- [ ] Three API routes now exist across the children: `/api/visa-data` (0002), `/api/flights` (0003) and `/api/clerk-webhook` (0004). A production build needs the routes deployed (see `eas-hosting`) and `EXPO_PUBLIC_API_BASE_URL` set, and the Clerk webhook needs that public URL.
+- [ ] `AGENTS.md` (through `/sync`) needs one update from the children together: data now lives in Supabase after 0004, live prices and the visa dataset come through API routes, `src/data` loses the catalog files, and the new skills and MCP server from 0004 are listed.
 - [ ] The 89% and 12% survey figures come from a secondary source and the original PDF was not read. Do not quote them in any public material.
 - [ ] `main` is one commit ahead of this branch. Pull before building.
 

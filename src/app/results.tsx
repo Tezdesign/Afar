@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DataLabel } from "@/components/dataLabel";
 import { FieldPicker } from "@/components/fieldPicker";
 import { SearchChipRow } from "@/components/searchChipRow";
 import { airports } from "@/data/airports";
@@ -175,12 +176,8 @@ export default function Results() {
                     </Text>
                   </View>
                 )}
-                <View className="flex-row justify-end">
-                  <View className="rounded-sm bg-cloud px-sm py-xs">
-                    <Text className="text-caption text-ink opacity-60">
-                      Sample data
-                    </Text>
-                  </View>
+                <View className="items-end">
+                  <DataLabel />
                 </View>
               </Pressable>
             ))}

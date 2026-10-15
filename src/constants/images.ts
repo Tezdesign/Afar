@@ -1,9 +1,11 @@
 import afarIcon from "@/assets/images/afar-icon.png";
+import afarLogoMark from "@/assets/images/afar-logo-mark.png";
 import afarLogo from "@/assets/images/afar-logo.png";
 import onboardingMountain from "@/assets/images/onboarding-mountain.jpg";
 
 export const images = {
   afarIcon,
   afarLogo,
+  afarLogoMark,
   onboardingMountain,
 };

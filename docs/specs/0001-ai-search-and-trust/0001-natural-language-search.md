@@ -13,7 +13,7 @@ Slice one lets a person type a trip in their own words on Search, see the app's 
 - As any traveler, I want a clear next step when nothing matches, so that I am never stuck on a dead end.
 
 **Acceptance criteria** (the contract, each one independently checkable):
-- **AC-1**: Home keeps its search entry pill as the first control. In Flights mode, tapping it clears any old search (`reset()`) and opens Search with the text line focused. Under the pill, three example prompts show; tapping one clears the old search and opens Search with that sentence already parsed. Each example parses with zero unrecognized chips and returns at least one flight for any value of today. Examples contain no month, weekend or relative date phrase, so they cannot go stale.
+- **AC-1**: Home matches Figma frame `34:12`. Under the logo and Sign in row, the headline "Where to?" is followed by a "Describe your trip" card as the first control. Tapping the card or its arrow clears any old search (`reset()`) and opens Search with the text line focused; Home never parses text itself. The card's placeholder is the first example prompt, and the other two examples show as chips under it. Tapping a chip clears the old search and opens Search with that sentence already parsed. The card also has an "Ask Afar" link that opens the assistant, and there is no floating assistant button on Home. Home has no greeting row, no filter button and no Flights, Hotels or Cars switch, because only flights work. Below the chips, an "Ideas to start from" strip shows flight deal cards, each with a "Sample data" label. The three examples are "Anywhere from Tunis under 300 EUR" (placeholder), "Tunis to Paris direct" and "Rome from Barcelona under 100 EUR". Each parses with zero unrecognized chips and returns at least one flight for any value of today. Examples contain no month, weekend or relative date phrase, so they cannot go stale, and none promises something the parser cannot read (such as "warm" or "visa free").
 - **AC-2**: On Search, a text line (placeholder is an example, not a command) sends its text to `parseSearch()` when the arrow or return is pressed. A submit replaces every parsed field: it clears the old parsed values first, then writes the new ones, so a second sentence never merges with the first. The result fills chips for origin, destination or "Anywhere", month or dates, nights, budget, and direct only. Nothing is searched until the Search button is tapped.
 - **AC-3**: `parseSearch()` follows the parser rules in `## Feature design`. Anything it cannot map becomes an Unrecognized chip with the original words (up to 3 chips, then "+N more"). An Unrecognized chip never changes a filter. The parser never throws on any string, including empty text.
 - **AC-4**: Search has form rows for Where, When (month or dates, and nights), Budget and From, matching the Figma frames. Where and From list the airports in `airports.ts`. Every chip opens the same picker as its form row and has a × to clear. Direct only has no form row, only a chip set by the text line and cleared with its ×. The text line, the chips and the form rows all read and write the same `searchStore` fields, so they can never disagree.
@@ -135,7 +135,7 @@ Not understood, shown as Unrecognized chips and never filtering: a second destin
 - Parser safety: empty string, only spaces, emoji, 5000 characters and "ParisRomeParis" never throw, verifies **AC-3**.
 - Token use: "Paris under 400 TND", "max 5 nights", "21 Aug", "weekend in March", "under 400 and direct" and "Rome to Paris in March" each parse to exactly one reading with no word counted twice, verifies **AC-3**.
 - Replace, not merge: typing a second sentence leaves none of the first sentence's chips, verifies **AC-2**.
-- Examples: each of the three Home example prompts parses with `unrecognized` empty and returns at least one flight, checked for 365 different values of today, verifies **AC-1**, **AC-11**.
+- Examples: each of the three Home example prompts (the placeholder and the two chips) parses with `unrecognized` empty and returns at least one flight, checked for 365 different values of today, verifies **AC-1**, **AC-11**.
 - No results: a search with no match shows only suggestions that each return a flight when applied, verifies **AC-7**.
 - Chips and form agree: editing the Where chip changes the Where form row and the reverse, verifies **AC-4**.
 - Guest: signed out, the whole path works and Search close goes to `/`, verifies **AC-13**.
@@ -159,6 +159,7 @@ Every task leaves `npx tsc --noEmit` passing.
 8. [x] Home: the entry pill clears the old search and opens Search focused in Flights mode, add the three example prompts, change flight deal taps to open Search with the destination, satisfies **AC-1**, **AC-9**.
 9. [x] Send the six analytics events, satisfies **AC-12**.
 10. [x] Accessibility pass (roles, labels, 44 point targets), then `npm run lint` and a run on the simulator against the Figma frames, satisfies **AC-14** and re checks **AC-1** to **AC-13** end to end.
+11. [x] Rebuild Home to Figma frame `34:12`, because task 8 built the older Home (greeting row, filter button, mode switch, three stacked examples). Replace those with the "Where to?" headline, the "Describe your trip" card with the first example as placeholder, two example chips, the "Ask Afar" link and the "Ideas to start from" strip, and remove the floating assistant button. Keep the entry behavior from task 8, satisfies **AC-1**.
 
 ## Consequences
 
@@ -169,7 +170,7 @@ Every task leaves `npx tsc --noEmit` passing.
 
 **Negative / tradeoffs**:
 - A rules parser handles fixed phrases only. "Somewhere warm" and French or Arabic sentences end up as Unrecognized chips, which is honest but less magical than a language model.
-- Only flights work. The Hotels and Cars modes on Home still open the old form with nothing behind it.
+- Only flights work. Home hides the Flights, Hotels and Cars switch, so Hotels and Cars cannot be reached from Home until they have a search of their own.
 - Removing the discount badges makes Home look plainer until a live price source exists.
 - Twelve sample flights still produce many "no results" screens, which is why the suggestions must be verified.
 
@@ -180,16 +181,18 @@ Every task leaves `npx tsc --noEmit` passing.
 ## Follow-up
 
 - [ ] Deferred states: Search · parsing and Search · offline fallback only exist once a server parser does. They stay in Figma, they are not built here.
-- [ ] Hotels and Cars search is out of scope. Decide whether those modes get their own results or the mode switch is hidden on Home.
+- [ ] Hotels and Cars search is out of scope. The mode switch is hidden on Home (decided in Figma frame `34:12`). Decide later whether those modes get their own results and a way back into Home.
+- [ ] Other Figma frames still show text the parser cannot read ("4 days somewhere warm", "Warm weekend", "Visa free trips in March") and a Tunis to Istanbul route that is not in the sample data. They are in the Search, Passport and Results sections. Align them or label them as future states.
 - [ ] "N adults" and "N kids" are not parsed in this slice, so they show as Unrecognized and the user sets travelers on the form row.
 - [ ] Figma says `origin` and `maxBudget` are new fields. The store already has `origin` and `maxPrice`. Fix the Search spec card text.
+- [ ] Spec 0004 (Supabase) later replaces the local data this slice reads. The hardcoded flights with day offsets become database rows with a daily date job, `searchFlights()` keeps only its pure parts (reason lines and suggestion candidates) while matching moves into database queries, and AC-13's "no network call" then holds only for the path before 0004. Keep this slice's code as it is until 0004 is built.
 - [ ] `parseSearch.check.ts` is a plain assert script because the project has no test runner. Revisit when a runner is added.
 - [ ] Review note kept from the cross check: slice one sets `allowImportingTsExtensions` in `tsconfig.json` only so the check script can run. If a test runner arrives, drop it.
 
 ## Rationale
 
 - **Local parser over a server model** (runner up: a Clerk verified server route). Guests have no Clerk token and `AGENTS.md` requires verifying every caller, so a server route would force sign in for the first search, against the guest decision. The local parser is free, instant and offline, and the `parseSearch()` boundary keeps the upgrade cheap.
-- **Entry pill that opens Search** (runner up: a real input on Home). One screen owns the line, chips and parsing, so there is nothing to keep in sync. It costs one tap, which the focused keyboard softens.
+- **Entry card that opens Search** (runner up: a real input on Home). The Home card looks like an input but is a tap target. One screen owns the line, chips and parsing, so there is nothing to keep in sync. It costs one tap, which the focused keyboard softens.
 - **Day offsets for sample dates** (runner up: hand edited dates). It stays correct forever and keeps results honest, at the price of one small helper.
 - **Strict budget filter** (runner up: show over budget results last). It makes the "raise budget" suggestion meaningful and matches the no results spec card.
 - **Bare number means EUR, shown in the chip** (runner up: treat as unrecognized). It saves a correction in the common case, and the chip makes the assumption visible and editable.
