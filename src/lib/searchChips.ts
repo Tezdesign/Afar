@@ -1,8 +1,8 @@
 // Pure: turns search params into the chips (and form row values) the screens
 // show. One chip per field, so the chips, the form rows and the store can
 // never disagree.
-import { airports } from "@/data/airports";
 import { parseISODate } from "@/lib/dates";
+import { useAirportStore } from "@/store/airportStore";
 import type { SearchParams } from "@/store/searchStore";
 
 /** The four pickers. Chips and form rows open the same ones. */
@@ -21,8 +21,10 @@ export interface ChipSpec {
   clear: Partial<SearchParams>;
 }
 
+// Read straight from the store: AppGate holds every screen back until the
+// airports have loaded, so the list is never empty here.
 const airportName = (code: string, compact: boolean) => {
-  const airport = airports.find((a) => a.code === code);
+  const airport = useAirportStore.getState().airports.find((a) => a.code === code);
   if (!airport) return code;
   return compact ? airport.city : `${airport.city} (${airport.code})`;
 };

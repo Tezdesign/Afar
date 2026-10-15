@@ -1,7 +1,7 @@
-import { airports } from "@/data/airports";
 import { parseSearch } from "@/lib/parseSearch";
 import { posthog } from "@/lib/posthog";
 import { buildChips } from "@/lib/searchChips";
+import { useAirportStore } from "@/store/airportStore";
 import { useSearchStore } from "@/store/searchStore";
 
 /**
@@ -12,7 +12,11 @@ export function submitSentence(sentence: string) {
   const text = sentence.trim();
   if (!text) return false;
 
-  const { params, unrecognized } = parseSearch(text, new Date(), airports);
+  const { params, unrecognized } = parseSearch(
+    text,
+    new Date(),
+    useAirportStore.getState().airports,
+  );
   const { reset, setSearchParams } = useSearchStore.getState();
   reset();
   setSearchParams({ ...params, unrecognized });

@@ -4,8 +4,11 @@ import { Redirect } from "expo-router";
 import { Image, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { LoadError } from "@/components/loadError";
+import { SkeletonRow } from "@/components/skeleton";
 import { images } from "@/constants/images";
-import { destinations } from "@/data/destinations";
+import { catalog } from "@/lib/db";
+import { useAsync } from "@/lib/useAsync";
 import { useSavedStore } from "@/store/savedStore";
 
 export default function Saved() {
@@ -14,12 +17,48 @@ export default function Saved() {
 
   // Selector-only read — this screen only re-renders when savedIds changes.
   const savedIds = useSavedStore((state) => state.savedIds);
-  const savedDestinations = destinations.filter((destination) =>
-    savedIds.has(destination.id),
-  );
+  const savedStatus = useSavedStore((state) => state.status);
+  const loadSaved = useSavedStore((state) => state.load);
+  const places = useAsync(() => catalog.fetchDestinations(), "destinations");
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/onboarding" />;
+
+  // The list itself (which ids) comes from the account, the cards from the catalog.
+  const failed = savedStatus === "error" || places.state.status === "error";
+  const loading =
+    savedStatus === "loading" || (!failed && places.state.status === "loading");
+
+  if (failed || loading) {
+    return (
+      <View
+        className="flex-1 bg-white px-lg gap-md"
+        style={{ paddingTop: insets.top + 12 }}
+      >
+        <Text className="text-display text-ink">Saved</Text>
+        {failed ? (
+          <LoadError
+            title="Couldn’t load your saved places"
+            onRetry={() => {
+              if (savedStatus === "error") loadSaved();
+              places.retry();
+            }}
+          />
+        ) : (
+          <>
+            <SkeletonRow />
+            <SkeletonRow />
+            <SkeletonRow />
+          </>
+        )}
+      </View>
+    );
+  }
+
+  const savedDestinations =
+    places.state.status === "ready"
+      ? places.state.data.filter((destination) => savedIds.has(destination.id))
+      : [];
 
   if (savedDestinations.length === 0) {
     return (
@@ -61,7 +100,9 @@ export default function Saved() {
                 {destination.city}, {destination.country}
               </Text>
               <Text className="text-[12px] text-ink opacity-50">
-                From {destination.priceFrom} {destination.currency}
+                {destination.priceFrom !== null
+                  ? `From ${destination.priceFrom} ${destination.currency}`
+                  : "No flights yet"}
               </Text>
             </View>
           </View>

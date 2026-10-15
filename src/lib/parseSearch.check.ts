@@ -3,8 +3,17 @@
 // @ts-expect-error no @types/node in this project, Node resolves it at runtime
 import assert from "node:assert/strict";
 
-import { airports } from "../data/airports.ts";
 import { EXAMPLE_PROMPTS, parseSearch } from "./parseSearch.ts";
+
+// The checks read these six airports, the same as the sample catalog.
+const airports = [
+  { code: "TUN", city: "Tunis", country: "Tunisia", countryCode: "TN" },
+  { code: "CDG", city: "Paris", country: "France", countryCode: "FR" },
+  { code: "BCN", city: "Barcelona", country: "Spain", countryCode: "ES" },
+  { code: "FCO", city: "Rome", country: "Italy", countryCode: "IT" },
+  { code: "LHR", city: "London", country: "United Kingdom", countryCode: "GB" },
+  { code: "JFK", city: "New York", country: "United States", countryCode: "US" },
+];
 
 // Wednesday 14 Oct 2026. Next Saturday is 17 Oct.
 const TODAY = new Date(2026, 9, 14);

@@ -30,15 +30,15 @@ Slice four moves Afar's data out of hardcoded files and into the Supabase Postgr
 - **AC-12**: The trips accessor creates one `trips` row, even when called twice with the same device made id, with at most one link to a catalog flight, hotel or car (none for a live flight from spec 0003, because live flights are never stored in the catalog) plus a snapshot (title, price, currency, details). After the catalog row is deleted the trip still reads correctly from its snapshot and its link is empty. No screen creates a trip yet, because Afar does not book. The Trips tab keeps its empty state until a later slice adds a way to record a trip.
 - **AC-13**: The profile row holds `passport_country` (a two letter ISO code), `language` and `currency`. Spec 0002's passport store writes through to it. On sign in the profile loads and replaces the device values. If the person has no profile row, one is created from the device values and any guest passport (see Key invariants). Guests keep device values. Changing a value signed in writes it to the profile, and a failed write rolls back and says so. Creating the profile and copying the passport are safe to repeat and to run on two devices at once.
 - **AC-14**: Typed accessors exist for alerts, the activity log, recent searches and push tokens, with no new screens. Alerts never hold both a destination and `anywhere`, and always set `is_demo` true. Recent searches store parsed fields only, never the typed text, and keep the newest 10 per person. A person's push token row is removed before sign out completes, while their token still works.
-- **AC-15**: A Clerk webhook route verifies the raw request with Clerk's `verifyWebhook` (from `@clerk/backend/webhooks`, already installed). For a `user.deleted` event it calls one database function, `delete_user_data(user_id)`, with the Supabase secret key, which deletes that user's rows in every account table in one transaction. A failure answers 500 so Clerk retries. Running it twice is harmless. Any other event type answers 200 and does nothing. A bad signature answers 400 and deletes nothing. The secret key exists only on the server.
+- **AC-15**: A Clerk webhook, a Supabase Edge Function at `supabase/functions/clerk-webhook`, verifies the raw request's Svix signature (the scheme Clerk signs with) before anything else. For a `user.deleted` event it calls one database function, `delete_user_data(user_id)`, with the Supabase secret key the Edge Function runtime provides, which deletes that user's rows in every account table in one transaction. A failure answers 500 so Clerk retries. Running it twice is harmless. Any other event type answers 200 and does nothing. A bad signature answers 400 and deletes nothing. The secret key exists only inside Supabase.
 - **AC-16**: Any failed catalog read shows an error state with Retry (startup, Results, Home ideas, flight detail). Any failed write rolls back and says so. No screen is left blank on error. These states are built from the Figma frames. Each failure sends a `supabase_error` event with the table and the operation, and never row data or typed text.
-- **AC-17**: The Supabase URL and publishable key are public config. The secret key and the Clerk webhook secret are server only. `.env.example` lists every new variable. The app stops at startup with a clear message if the URL or key is missing.
+- **AC-17**: The Supabase URL and publishable key are public config. The secret key never leaves Supabase (the Edge Function reads it from its runtime), and the Clerk webhook secret is a Supabase function secret, so neither is in the app or its `.env`. `.env.example` lists every variable the app uses. The app stops at startup with a clear message if the URL or key is missing.
 
 ## Decision
 
 **Chosen option**: Supabase as a direct, row level security protected data layer behind Clerk, with Zustand kept as the in app copy.
 
-The app talks to Supabase directly with the publishable key plus the Clerk session token, rules in the database decide who sees which rows, and the only server code is one Clerk webhook route that cleans up deleted accounts.
+The app talks to Supabase directly with the publishable key plus the Clerk session token, rules in the database decide who sees which rows, and the only server code is one Clerk webhook, a Supabase Edge Function that cleans up deleted accounts.
 
 **Implementation skills**: `supabase` (`supabase/agent-skills`, `.agents/skills/supabase/`) · `supabase-postgres-best-practices` (`supabase/agent-skills`, `.agents/skills/supabase-postgres-best-practices/`) · `clerk-expo` (`clerk/skills`, `.agents/skills/clerk-expo/`) · `clerk-webhooks` (`clerk/skills`, `.agents/skills/clerk-webhooks/`) · `expo-data-fetching` (`.agents/skills/expo-data-fetching/`)
 
@@ -48,7 +48,8 @@ The app talks to Supabase directly with the publishable key plus the Clerk sessi
 - **Migrations**: imperative SQL files with the Supabase CLI. Runner up: declarative schemas, which suit a larger team.
 - **Client setup**: `@supabase/supabase-js` with the `accessToken` option and `react-native-url-polyfill`, no Supabase Auth session, no storage adapter. Runner up: the Supabase Auth quickstart, which would bring a second auth system.
 - **Types**: generated with `supabase gen types typescript` into `src/types/database.ts` and committed. Runner up: hand written types.
-- **Keys**: the publishable key in the app, the secret key only in the webhook route. The legacy `anon` and `service_role` keys are not used.
+- **Keys**: the publishable key in the app, the secret key only inside the webhook's Edge Function (the runtime provides it as `SUPABASE_SECRET_KEYS`). The legacy `anon` and `service_role` keys are not used.
+- **Webhook host**: a Supabase Edge Function, deployed with `supabase functions deploy clerk-webhook --no-verify-jwt`, the same way the marketplace app does it. Runner up: an Expo API route (the first draft of this spec), which needs the app's API routes deployed to a public URL first. Changed after the first build, so the webhook is reachable without deploying anything else.
 - **Passport and visa**: the passport is account data and lives in the profile. The visa rules are the public Passport Index dataset that spec 0002 loads through its own API route, so they stay out of the database. Runner up: load the dataset into a table too, which would mean about 39,000 rows and a sync job for no gain today.
 - **Passport for guests**: a setting, not a saved item. A guest's passport stays on the device as spec 0002 says, and is copied into the profile once at first sign in if the profile has none. The guest bucket is left as it was. The "guests cannot save" rule covers saved destinations and trips.
 - **Preferences conflict**: the account wins. On sign in the profile replaces the device values. With no profile row, the device values create it.
@@ -104,7 +105,7 @@ Suggestions run the same query with one field relaxed. The "raise budget" value 
 
 | Endpoint | Method | Key inputs | Key outputs | Auth | Key errors |
 |---|---|---|---|---|---|
-| `/api/clerk-webhook` | POST | Raw Clerk webhook body and its signature headers | `{ ok: true }` | Clerk signature, checked on the raw body before anything else | 400 bad or missing signature, 500 missing server env or a failed delete (Clerk retries) |
+| `/functions/v1/clerk-webhook` (Edge Function) | POST | Raw Clerk webhook body and its signature headers | `{ ok: true }` | Clerk signature, checked on the raw body before anything else | 400 bad or missing signature, 500 missing server env or a failed delete (Clerk retries) |
 
 **Client structure**: `src/lib/supabase.ts` creates the one client with an `accessToken` function that asks the Clerk client instance for the current session token directly, not through a setter filled in an effect, because child screens run their effects before `SessionEffects` and would otherwise load as `anon`. Account loads start only when Clerk reports loaded and signed in. If a signed in session cannot produce a token, the call fails and shows the error state. It never falls back to `anon`. `src/lib/db/` holds typed functions per area (catalog, account), and maps database rows to the app types (for example `country_code` to `Airport.countryCode`, which spec 0002 reads, and `source` onto `Flight.source`, which spec 0003 reads). `src/lib/searchFlights.ts` keeps only its pure parts (reason lines and suggestion candidates); the matching moves into `src/lib/db/catalog.ts`. The Zustand stores for saved, trips and profile stay as the in app copy: they update at once, write to Supabase, roll back on failure, load after sign in, and clear on sign out. `applyStorageScope()` keeps its guest and per account buckets only for what still lives on the device (the auth store and the guest passport).
 
@@ -115,7 +116,7 @@ Suggestions run the same query with one field relaxed. The "raise budget" value 
 - Policies: every insert policy has a `with check` on the owner, every update policy has `using` and `with check`, and `profiles` has select, insert and update policies so an upsert works.
 - Account tables never use `auth.uid()`, and never read `user_metadata` for any decision.
 - `anywhere` and `destination` are never both set, in the app and in the alerts check constraint.
-- The secret key is read only in `src/app/api/clerk-webhook+api.ts` and never appears under `EXPO_PUBLIC_`.
+- The secret key is read only in `supabase/functions/clerk-webhook/index.ts`, from the runtime's `SUPABASE_SECRET_KEYS`. It never appears in the app, its `.env` or under `EXPO_PUBLIC_`.
 - No price exists in two places: deals and destinations read prices from the catalog rows through the views.
 - Prices stay labelled "Sample data" while `source = 'sample'`.
 - A guest passport is copied into a profile only when that profile has no passport, once, and never overwrites. The copy is one statement, `update profiles set passport_country = x where passport_country is null`, and the profile is created with `insert ... on conflict do nothing`.
@@ -128,8 +129,8 @@ Suggestions run the same query with one field relaxed. The "raise budget" value 
 **Configuration required**:
 - `EXPO_PUBLIC_SUPABASE_URL`: the project URL, no trailing path.
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: the publishable key (`sb_publishable_...`).
-- `SUPABASE_SECRET_KEY`: the secret key (`sb_secret_...`), server only, used by the webhook.
-- `CLERK_WEBHOOK_SIGNING_SECRET`: Clerk's signing secret for the webhook endpoint, server only.
+- The Supabase secret key needs no setup: Edge Functions receive it from the runtime.
+- `CLERK_WEBHOOK_SIGNING_SECRET`: Clerk's signing secret for the webhook endpoint, set once with `supabase secrets set CLERK_WEBHOOK_SIGNING_SECRET=whsec_...`. Never in the app's `.env`.
 - Your one time setup steps: activate the Supabase integration in the Clerk dashboard, then add Clerk as a third party provider in the Supabase dashboard with the Clerk domain, link the CLI to the project (`supabase link`), and confirm the project's Data API settings.
 
 **Critical test scenarios** (each maps to an acceptance criterion):
@@ -171,25 +172,25 @@ Suggestions run the same query with one field relaxed. The "raise budget" value 
 - A new table the Data API does not expose returns "permission denied" or an empty result. Grants are explicit in the migration.
 - The date job depends on `pg_cron` being enabled on the project. Check the plan supports it before phase 1 ends.
 - A free plan project may pause when unused, which would make the app show its error state and skip the daily date job, so sample dates would be stale until the next run. Check your plan's pause rules.
-- The webhook cannot clean up writes made in the last seconds of a deleted person's token life, or deletions that happened before the API routes were deployed. Accepted, and noted.
+- The webhook cannot clean up writes made in the last seconds of a deleted person's token life, or deletions that happened before the function was deployed. Accepted, and noted.
 - The 100 row cap makes "Cheapest of N" inaccurate for a very large result set. It is exact for the sample set (12 flights). Raise or page the query when real data arrives.
 
 ## Build plan
 
 Build approach is **Tracer Bullet**, taken from the umbrella spec (no approach is recorded in `AGENTS.md`). The thin path is: Clerk token into Supabase, then catalog read, then Results, then the account tables.
 
-0. [ ] Figma first: add the frames for startup loading and error, Results loading and error, Home ideas loading and error, flight detail error, and the sign in prompt at the heart. No UI code for those states until they exist, satisfies **AC-16**, **AC-10** (design).
-1. [ ] Set up: install `@supabase/supabase-js` (exact version, lockfile committed) and `react-native-url-polyfill`, add `src/lib/supabase.ts`, env variables and `.env.example`, the startup check, `supabase init` and `supabase link`. Do your one time dashboard steps (Clerk integration, Supabase third party provider), satisfies **AC-2**, **AC-17**.
+0. [x] Figma first: add the frames for startup loading and error, Results loading and error, Home ideas loading and error, flight detail error, and the sign in prompt at the heart. No UI code for those states until they exist, satisfies **AC-16**, **AC-10** (design).
+1. [x] Set up: install `@supabase/supabase-js` (exact version, lockfile committed) and `react-native-url-polyfill`, add `src/lib/supabase.ts`, env variables and `.env.example`, the startup check, `supabase init` and `supabase link`. Do your one time dashboard steps (Clerk integration, Supabase third party provider), satisfies **AC-2**, **AC-17**.
 2. [x] Migration 1: catalog tables, the two views, constraints, indexes, `revoke all` then explicit grants, row level security, the date function and its cron job, and the seed file generated from the current `src/data` content (the seed calls the date function last). Apply with `supabase db push`, confirm the live schema (tables, policies, job), run the advisors, and generate `src/types/database.ts`, satisfies **AC-1**, **AC-3**, **AC-5**, **AC-6**.
-3. [ ] Thin path: load airports at startup with the loading and error states from Figma, move `parseSearch()` and the chips to the loaded airports, and read `/results` from the database with the basic filters, satisfies **AC-7**, **AC-8**, **AC-16**.
-4. [ ] Save outputs from the old on device search for 20 sample inputs, with a pinned date, as fixtures. Then finish search: month, exact date window, nights, direct only, budget, ordering (price, duration, id), the reason lines on returned rows, and the suggestions with their verifying queries. Compare against the fixtures, satisfies **AC-7**.
-5. [ ] Home and detail: the ideas strip, destination cards, deal cards and flight detail read from the database and the views, with their error states. Delete the old data files and update `parseSearch.check.ts` to use its own small airport list, satisfies **AC-9**, **AC-5**, **AC-16**.
+3. [x] Thin path: load airports at startup with the loading and error states from Figma, move `parseSearch()` and the chips to the loaded airports, and read `/results` from the database with the basic filters, satisfies **AC-7**, **AC-8**, **AC-16**.
+4. [x] Save outputs from the old on device search for 20 sample inputs, with a pinned date, as fixtures. Then finish search: month, exact date window, nights, direct only, budget, ordering (price, duration, id), the reason lines on returned rows, and the suggestions with their verifying queries. Compare against the fixtures, satisfies **AC-7**.
+5. [x] Home and detail: the ideas strip, destination cards, deal cards and flight detail read from the database and the views, with their error states. Delete the old data files and update `parseSearch.check.ts` to use its own small airport list, satisfies **AC-9**, **AC-5**, **AC-16**.
 6. [x] Migration 2: the seven account tables, their policies, column level grants, `updated_at` trigger, `user_id` indexes, the `delete_user_data` function and its grants, plus the database test with two users that proves the isolation. Apply, run the advisors, regenerate types, satisfies **AC-1**, **AC-4**.
-7. [ ] Saved and trips: write through stores with rollback, load on sign in and clear on sign out, the guest gate on the heart, the trip accessor with its snapshot (no screen creates a trip yet), and removal of the old device keys, satisfies **AC-10**, **AC-11**, **AC-12**.
+7. [x] Saved and trips: write through stores with rollback, load on sign in and clear on sign out, the guest gate on the heart, the trip accessor with its snapshot (no screen creates a trip yet), and removal of the old device keys, satisfies **AC-10**, **AC-11**, **AC-12**.
 8. [ ] Profile: move the passport store that spec 0002 built so an account's passport is loaded from the profile and written through to it, with no device copy for accounts, keep the guest bucket, and make the guest copy go into the profile (replacing 0002's account bucket and its copy target). Add language and currency to the profile with the account wins rule on sign in, satisfies **AC-13**.
 9. [ ] Accessors for alerts, activity log, recent searches (parsed fields only, newest 10) and push tokens (removed on sign out), satisfies **AC-14**.
-10. [ ] The Clerk webhook route: `verifyWebhook` on the raw body, a call to `delete_user_data` through the secret key client, 200 for other event types, 500 on failure, satisfies **AC-15**.
-11. [ ] Close out: the `supabase_error` event, a full pass over the failure and guest scenarios, `npx tsc --noEmit`, `npm run lint`, the advisors, and a check that no secret key is in the app bundle, satisfies **AC-16**, **AC-17**.
+10. [x] The Clerk webhook as an Edge Function: Svix verification on the raw body, a call to `delete_user_data` through the runtime's secret key client, 200 for other event types, 500 on failure, satisfies **AC-15**.
+11. [x] Close out: the `supabase_error` event, a full pass over the failure and guest scenarios, `npx tsc --noEmit`, `npm run lint`, the advisors, and a check that no secret key is in the app bundle, satisfies **AC-16**, **AC-17**.
 
 ## Consequences
 
@@ -206,7 +207,7 @@ Build approach is **Tracer Bullet**, taken from the umbrella spec (no approach i
 - Two kinds of date logic exist for the sample set (the daily job and the offsets) until real data arrives.
 - Anyone with the publishable key can call the data API, so safety rests entirely on the policies being right.
 - Live prices (spec 0003) use sample flights as their fallback. With the catalog in the database, that fallback is unavailable when Supabase is down.
-- The webhook needs a public URL for the API routes, so it only works once they are deployed, not on a local dev server.
+- The webhook only works once the Edge Function is deployed, not on a local dev server (testing it locally needs Docker and `supabase functions serve`).
 
 **Neutral**:
 - `supabase/` appears in the repo with migrations, the seed and tests.
@@ -218,7 +219,7 @@ Build approach is **Tracer Bullet**, taken from the umbrella spec (no approach i
 - [ ] Add Figma frames before building: startup loading and error, Results loading and error, Home ideas loading and error, flight detail error, and the sign in prompt a guest sees at the heart. Frames Results, Home and flight detail already exist.
 - [ ] Spec 0002 stays as written and is built first, with a device passport. Task 8 here replaces its account bucket and its guest copy target. Its visa dataset route and `visaDataStore` do not change, and 0002 carries a note about this.
 - [x] Spec 0003 (live prices) was updated to match: it builds after this spec, reads airports and sample flights from the database, and keeps live flights out of the catalog tables. Still open there: its in memory caps and cache can move to two Supabase tables in a later migration.
-- [ ] Deploy the Expo API routes to a public URL (`EXPO_PUBLIC_API_BASE_URL`, see `eas-hosting`) and register the webhook endpoint in Clerk before task 10 can be verified.
+- [ ] Deploy `clerk-webhook` (`supabase functions deploy clerk-webhook --no-verify-jwt`), set `CLERK_WEBHOOK_SIGNING_SECRET` with `supabase secrets set`, and register `https://<project-ref>.supabase.co/functions/v1/clerk-webhook` in Clerk for the `user.deleted` event before task 10 can be verified.
 - [ ] Connect the official Supabase MCP server (`https://mcp.supabase.com/mcp`) in your MCP settings. Use a scoped access token, not a full account token.
 - [ ] `AGENTS.md` should add the `supabase` and `supabase-postgres-best-practices` skills to its Agent skills section, record Supabase and the MCP server, and update the Rules line that says data is hardcoded and no database is allowed.
 - [ ] This spec now holds the sign in gate at the heart, so slice 3 (guest access and sign in on demand) builds after it and only improves the prompt and the guest states of Saved and Trips. The umbrella index records the new order.

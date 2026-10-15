@@ -1,15 +1,16 @@
-// Compares the database search with the old on device search (searchFlights),
-// run over the same rows, for the same inputs. Needs the network and .env.
+// Compares the database search with the on device search it replaced, run
+// over the same rows, for the same inputs. The old matching and suggestion
+// code lives on below as `reference`, so this works on any day (the sample
+// flight dates move every day, which a frozen fixture could not follow).
+// Needs the network and .env.
 // Run: node --env-file=.env src/lib/db/catalog.check.ts
-// Once src/lib/searchFlights.ts loses its old searchFlights, freeze these
-// expected results as fixtures instead (spec 0004 task 5).
 // @ts-expect-error no @types/node in this project, Node resolves it at runtime
 import assert from "node:assert/strict";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { addDays, parseISODate, toISODate } from "../dates.ts";
-import { searchFlights as onDevice } from "../searchFlights.ts";
+import { addDays, daysBetween, parseISODate, toISODate } from "../dates.ts";
+import { withReasons } from "../searchFlights.ts";
 import type { SearchParams } from "../../store/searchStore.ts";
 import type { Flight } from "../../types/travel.ts";
 import { createCatalog } from "./catalog.ts";
@@ -20,6 +21,62 @@ const db = createClient(
   env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
 );
 const catalog = createCatalog(db);
+
+// --- the old on device search, kept only as the reference ---
+const nightsOf = (f: Flight) =>
+  f.returnDate ? daysBetween(parseISODate(f.departDate), parseISODate(f.returnDate)) : null;
+
+const matches = (f: Flight, p: SearchParams) => {
+  if (p.origin && f.originCode !== p.origin) return false;
+  if (!p.anywhere && p.destination && f.destinationCode !== p.destination) return false;
+  if (p.departDate) {
+    const gap = daysBetween(parseISODate(p.departDate), parseISODate(f.departDate));
+    if (Math.abs(gap) > 3) return false;
+  } else if (p.month && !f.departDate.startsWith(p.month)) return false;
+  if (p.nights !== null) {
+    const n = nightsOf(f);
+    if (n === null || Math.abs(n - p.nights) > 1) return false;
+  }
+  if (p.directOnly && f.stops !== 0) return false;
+  if (p.maxPrice !== null && f.price > p.maxPrice) return false;
+  return true;
+};
+
+const filterSorted = (flights: Flight[], p: SearchParams) =>
+  flights
+    .filter((f) => matches(f, p))
+    .sort((a, b) => a.price - b.price || a.durationMinutes - b.durationMinutes);
+
+const referenceSuggestions = (flights: Flight[], p: SearchParams) => {
+  const candidates: { kind: string; label: string; patch: Partial<SearchParams> }[] = [];
+  if (p.maxPrice !== null) {
+    const [cheapest] = filterSorted(flights, { ...p, maxPrice: null });
+    if (cheapest) {
+      const to = Math.ceil(cheapest.price / 10) * 10;
+      candidates.push({ kind: "budget", label: `Raise budget to ${to} EUR`, patch: { maxPrice: to } });
+    }
+  }
+  if (p.month || p.departDate || p.returnDate || p.nights !== null)
+    candidates.push({ kind: "dates", label: "Any dates", patch: { month: null, departDate: null, returnDate: null, nights: null } });
+  if (p.origin) candidates.push({ kind: "origin", label: "Any starting airport", patch: { origin: null } });
+  if (p.directOnly) candidates.push({ kind: "stops", label: "Allow stops", patch: { directOnly: false } });
+  if (
+    p.destination && !p.anywhere &&
+    !flights.some((f) => f.destinationCode === p.destination && (!p.origin || f.originCode === p.origin))
+  )
+    candidates.push({ kind: "anywhere", label: "Anywhere", patch: { destination: null, anywhere: true } });
+  return candidates
+    .filter((s) => filterSorted(flights, { ...p, ...s.patch }).length > 0)
+    .slice(0, 3);
+};
+
+const reference = (flights: Flight[], p: SearchParams) => {
+  const sorted = filterSorted(flights, p);
+  return {
+    results: withReasons(sorted),
+    suggestions: sorted.length === 0 ? referenceSuggestions(flights, p) : [],
+  };
+};
 
 const all = await catalog.queryFlights(base());
 function base(over: Partial<SearchParams> = {}): SearchParams {
@@ -69,7 +126,7 @@ const inputs: [string, Partial<SearchParams>][] = [
 
 for (const [name, over] of inputs) {
   const params = base(over);
-  const expected = onDevice(all, params);
+  const expected = reference(all, params);
   const got = await catalog.searchFlights(params);
   assert.deepEqual(
     got.results.map((r) => [r.flight.id, r.reason]),
@@ -78,4 +135,4 @@ for (const [name, over] of inputs) {
   );
   assert.deepEqual(got.suggestions, expected.suggestions, `suggestions for ${name}`);
 }
-console.log(`ok: ${inputs.length} inputs match the on device search`);
+console.log(`ok: ${inputs.length} inputs match the reference search`);

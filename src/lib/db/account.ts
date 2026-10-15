@@ -13,6 +13,22 @@ type Tables = Database["public"]["Tables"];
 export type Alert = Tables["alerts"]["Row"];
 export type ActivityEntry = Tables["activity_log"]["Row"];
 export type RecentSearch = Tables["recent_searches"]["Row"];
+export type TripRow = Tables["trips"]["Row"];
+
+export interface TripInput {
+  /** Made on the device, so saving the same trip twice makes one row */
+  id: string;
+  type: "flight" | "hotel" | "car";
+  /** At most one link. None for a live flight, which is never in the catalog. */
+  flightId?: string;
+  hotelId?: string;
+  carId?: string;
+  /** What the trip looked like when it was booked. Stays readable if the catalog row goes. */
+  title: string;
+  price: number;
+  currency: "EUR" | "USD" | "GBP";
+  details?: Json;
+}
 
 export type AlertStatus = "active" | "paused" | "undone";
 
@@ -67,6 +83,70 @@ export function createAccount(db: Db, report: ReportError = () => {}) {
   };
 
   return {
+    // --- saved destinations -----------------------------------------------
+
+    async fetchSavedIds(): Promise<string[]> {
+      const { data, error } = await db.from("saved_destinations").select("destination_id");
+      if (error) fail("saved_destinations", "select");
+      return (data ?? []).map((r) => r.destination_id);
+    },
+
+    /** Saving twice is harmless: duplicates are ignored. */
+    async saveDestination(destinationId: string): Promise<void> {
+      const { error } = await db
+        .from("saved_destinations")
+        .upsert(
+          { destination_id: destinationId },
+          { onConflict: "user_id,destination_id", ignoreDuplicates: true },
+        );
+      if (error) fail("saved_destinations", "upsert");
+    },
+
+    async unsaveDestination(destinationId: string): Promise<void> {
+      const { error } = await db
+        .from("saved_destinations")
+        .delete()
+        .eq("destination_id", destinationId);
+      if (error) fail("saved_destinations", "delete");
+    },
+
+    // --- trips ------------------------------------------------------------
+
+    /** Upserts on the device made id: calling it twice makes one row. */
+    async createTrip(input: TripInput): Promise<void> {
+      const links = [input.flightId, input.hotelId, input.carId].filter(Boolean);
+      if (links.length > 1) throw new Error("A trip links to at most one flight, hotel or car.");
+      const { error } = await db.from("trips").upsert(
+        {
+          id: input.id,
+          type: input.type,
+          flight_id: input.flightId ?? null,
+          hotel_id: input.hotelId ?? null,
+          car_id: input.carId ?? null,
+          snapshot_title: input.title,
+          snapshot_price: input.price,
+          snapshot_currency: input.currency,
+          snapshot_details: input.details ?? {},
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+      if (error) fail("trips", "upsert");
+    },
+
+    async listTrips(): Promise<TripRow[]> {
+      const { data, error } = await db
+        .from("trips")
+        .select("*")
+        .order("booked_at", { ascending: false });
+      if (error) fail("trips", "select");
+      return data ?? [];
+    },
+
+    async deleteTrip(id: string): Promise<void> {
+      const { error } = await db.from("trips").delete().eq("id", id);
+      if (error) fail("trips", "delete");
+    },
+
     // --- alerts -----------------------------------------------------------
 
     /** Always a demo: there is no live price source yet (the database

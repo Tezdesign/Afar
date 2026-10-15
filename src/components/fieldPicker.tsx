@@ -5,10 +5,10 @@ import { Modal, Platform, Pressable, ScrollView, Text, View } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Chip } from "@/components/chip";
-import { airports } from "@/data/airports";
 import { parseISODate, toISODate } from "@/lib/dates";
 import { posthog } from "@/lib/posthog";
 import type { Field } from "@/lib/searchChips";
+import { useAirportStore } from "@/store/airportStore";
 import { useSearchStore, type SearchParams } from "@/store/searchStore";
 import { colors } from "@/theme/colors";
 
@@ -61,6 +61,7 @@ export function FieldPicker({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const airports = useAirportStore((s) => s.airports);
   const params = useSearchStore();
   const setSearchParams = useSearchStore((s) => s.setSearchParams);
   const [showDate, setShowDate] = useState(false);

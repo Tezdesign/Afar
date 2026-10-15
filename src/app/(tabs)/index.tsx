@@ -3,46 +3,44 @@ import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Chip } from "@/components/chip";
 import { DataLabel } from "@/components/dataLabel";
+import { InlineError } from "@/components/loadError";
+import { SkeletonTile } from "@/components/skeleton";
+import { Toast } from "@/components/toast";
 import { images } from "@/constants/images";
-import { deals } from "@/data/deals";
-import { destinations } from "@/data/destinations";
-import { flights } from "@/data/flights";
+import { catalog } from "@/lib/db";
 import { EXAMPLE_PROMPTS } from "@/lib/parseSearch";
 import { posthog } from "@/lib/posthog";
 import { submitSentence } from "@/lib/submitSentence";
+import { useAsync } from "@/lib/useAsync";
 import { useAuthStore } from "@/store/authStore";
 import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
 import { useSearchStore } from "@/store/searchStore";
 import { useTripsStore } from "@/store/tripsStore";
 import { colors } from "@/theme/colors";
+import { CARD_SHADOW } from "@/theme/shadow";
 import type { Deal } from "@/types/travel";
-
-const CARD_SHADOW = {
-  shadowColor: "#17181F",
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 8,
-  elevation: 2,
-} as const;
 
 // Header wash from the Figma frame: cobalt-100 fading into the page.
 const WASH = ["rgba(220,229,253,0.9)", "rgba(241,244,249,0)"] as const;
 
 const PAGE_GAP = 12;
 
-// Only flights can be searched, so only flight deals are ideas.
-const IDEAS = deals.filter((deal) => deal.type === "flight");
-
 export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
+
+  // Only flights can be searched, so only flight deals are ideas.
+  const ideas = useAsync(() => catalog.fetchDeals("flight"), "ideas");
+  const places = useAsync(() => catalog.fetchDestinations(), "destinations");
+  const [toast, setToast] = useState<string | null>(null);
 
   // Selector-only reads per the store architecture: never the whole store.
   const savedIds = useSavedStore((state) => state.savedIds);
@@ -69,17 +67,37 @@ export default function Home() {
     router.push({ pathname: "/search", params: { q: sentence } });
   };
 
-  // A flight deal opens Search with only its destination filled. A flight
-  // that can't be found opens an empty Search.
+  // A flight deal opens Search with only its destination filled. A deal
+  // with no destination opens an empty Search.
   const openDeal = (deal: Deal) => {
     resetSearch();
-    const flight = flights.find((f) => f.id === deal.refId);
-    if (!flight) {
+    if (!deal.destinationCode) {
       router.push("/search");
       return;
     }
-    setSearchParams({ destination: flight.destinationCode });
+    setSearchParams({ destination: deal.destinationCode });
     router.push({ pathname: "/search", params: { source: "deal" } });
+  };
+
+  // Saving needs an account: a guest goes to the sign in screen and nothing
+  // is saved. The heart changes at once; if the save fails it goes back and
+  // the toast says so.
+  const onHeart = async (destinationId: string, country: string) => {
+    if (!isSignedIn) {
+      router.push("/onboarding");
+      return;
+    }
+    const wasSaved = savedIds.has(destinationId);
+    const ok = await toggleSaved(destinationId);
+    if (!ok) {
+      setToast(wasSaved ? "Couldn’t remove. Try again." : "Couldn’t save. Try again.");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    posthog?.capture(
+      wasSaved ? "destination_removed_from_saved" : "destination_saved",
+      { destination_id: destinationId, destination_country: country },
+    );
   };
 
   return (
@@ -174,42 +192,55 @@ export default function Home() {
           <Text className="text-title text-ink">Ideas to start from</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: 24,
-            paddingTop: 16,
-            paddingBottom: 8,
-            gap: 16,
-          }}
-        >
-          {IDEAS.map((deal) => (
-            <Pressable
-              key={deal.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${deal.title}, from ${deal.price} ${deal.currency}, sample data`}
-              onPress={() => openDeal(deal)}
-              className="bg-white rounded-lg overflow-hidden"
-              style={[{ width: 180, height: 200 }, CARD_SHADOW]}
-            >
-              <Image
-                source={{ uri: deal.imageUrl }}
-                resizeMode="cover"
-                style={{ width: "100%", height: 100 }}
-              />
-              <View className="gap-xs" style={{ padding: PAGE_GAP }}>
-                <Text className="text-body text-ink" numberOfLines={1}>
-                  {deal.title}
-                </Text>
-                <Text className="text-[14px] font-jakarta-medium text-ink opacity-60">
-                  From {deal.price} {deal.currency}
-                </Text>
-                <DataLabel />
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+        {ideas.state.status === "error" ? (
+          <View className="px-lg pt-md">
+            <InlineError message="Couldn’t load ideas." onRetry={ideas.retry} />
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 24,
+              paddingTop: 16,
+              paddingBottom: 8,
+              gap: 16,
+            }}
+          >
+            {ideas.state.status === "loading" ? (
+              <>
+                <SkeletonTile />
+                <SkeletonTile />
+              </>
+            ) : (
+              ideas.state.data.map((deal) => (
+                <Pressable
+                  key={deal.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${deal.title}, from ${deal.price} ${deal.currency}, sample data`}
+                  onPress={() => openDeal(deal)}
+                  className="bg-white rounded-lg overflow-hidden"
+                  style={[{ width: 180, height: 200 }, CARD_SHADOW]}
+                >
+                  <Image
+                    source={{ uri: deal.imageUrl }}
+                    resizeMode="cover"
+                    style={{ width: "100%", height: 100 }}
+                  />
+                  <View className="gap-xs" style={{ padding: PAGE_GAP }}>
+                    <Text className="text-body text-ink" numberOfLines={1}>
+                      {deal.title}
+                    </Text>
+                    <Text className="text-[14px] font-jakarta-medium text-ink opacity-60">
+                      From {deal.price} {deal.currency}
+                    </Text>
+                    <DataLabel />
+                  </View>
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        )}
 
         <View className="flex-row items-center justify-between px-lg mt-xl mb-md">
           <Text className="text-title text-ink">Popular destinations</Text>
@@ -220,76 +251,82 @@ export default function Home() {
           </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, gap: PAGE_GAP }}
-        >
-          {destinations.map((destination) => {
-            const isSaved = savedIds.has(destination.id);
-            return (
-              <Pressable
-                key={destination.id}
-                accessibilityRole="button"
-                onPress={openSearch}
-                className="bg-white rounded-md overflow-hidden"
-                style={[{ width: 172 }, CARD_SHADOW]}
-              >
-                <View style={{ width: "100%", height: 112 }}>
-                  <Image
-                    source={{ uri: destination.imageUrl }}
-                    resizeMode="cover"
-                    style={{ width: "100%", height: "100%" }}
-                  />
+        {places.state.status === "error" ? (
+          <View className="px-lg">
+            <InlineError message="Couldn’t load destinations." onRetry={places.retry} />
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 24, gap: PAGE_GAP }}
+          >
+            {places.state.status === "loading" ? (
+              <>
+                <SkeletonTile width={172} />
+                <SkeletonTile width={172} />
+              </>
+            ) : (
+              places.state.data.map((destination) => {
+                const isSaved = savedIds.has(destination.id);
+                return (
                   <Pressable
+                    key={destination.id}
                     accessibilityRole="button"
-                    accessibilityLabel={
-                      isSaved ? "Remove from saved" : "Save destination"
-                    }
-                    onPress={() => {
-                      const action = isSaved
-                        ? "destination_removed_from_saved"
-                        : "destination_saved";
-                      toggleSaved(destination.id);
-                      posthog?.capture(action, {
-                        destination_id: destination.id,
-                        destination_country: destination.country,
-                      });
-                    }}
-                    className="absolute top-2 right-2 w-8 h-8 items-center justify-center rounded-full bg-white"
+                    onPress={openSearch}
+                    className="bg-white rounded-md overflow-hidden"
+                    style={[{ width: 172 }, CARD_SHADOW]}
                   >
-                    <Ionicons
-                      name={isSaved ? "heart" : "heart-outline"}
-                      size={14}
-                      color={isSaved ? "#FF6B45" : "#17181F"}
-                    />
+                    <View style={{ width: "100%", height: 112 }}>
+                      <Image
+                        source={{ uri: destination.imageUrl }}
+                        resizeMode="cover"
+                        style={{ width: "100%", height: "100%" }}
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isSaved ? "Remove from saved" : "Save destination"
+                        }
+                        onPress={() => onHeart(destination.id, destination.country)}
+                        className="absolute top-2 right-2 w-8 h-8 items-center justify-center rounded-full bg-white"
+                      >
+                        <Ionicons
+                          name={isSaved ? "heart" : "heart-outline"}
+                          size={14}
+                          color={isSaved ? "#FF6B45" : "#17181F"}
+                        />
+                      </Pressable>
+                    </View>
+                    <View className="p-sm gap-xs">
+                      <Text
+                        className="text-[14px] font-jakarta-bold text-ink"
+                        numberOfLines={1}
+                      >
+                        {destination.city}, {destination.country}
+                      </Text>
+                      <View className="flex-row items-center gap-xs">
+                        {destination.priceFrom !== null && (
+                          <View className="bg-cobalt-50 rounded-full px-sm py-xs">
+                            <Text className="text-[11px] font-jakarta-bold text-cobalt-700">
+                              from {destination.priceFrom} {destination.currency}
+                            </Text>
+                          </View>
+                        )}
+                        <View className="flex-row items-center gap-xs">
+                          <Ionicons name="star" size={11} color="#FF6B45" />
+                          <Text className="text-[11px] font-jakarta-bold text-ink opacity-70">
+                            {destination.rating.toFixed(1)}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
                   </Pressable>
-                </View>
-                <View className="p-sm gap-xs">
-                  <Text
-                    className="text-[14px] font-jakarta-bold text-ink"
-                    numberOfLines={1}
-                  >
-                    {destination.city}, {destination.country}
-                  </Text>
-                  <View className="flex-row items-center gap-xs">
-                    <View className="bg-cobalt-50 rounded-full px-sm py-xs">
-                      <Text className="text-[11px] font-jakarta-bold text-cobalt-700">
-                        from {destination.priceFrom} {destination.currency}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-xs">
-                      <Ionicons name="star" size={11} color="#FF6B45" />
-                      <Text className="text-[11px] font-jakarta-bold text-ink opacity-70">
-                        {destination.rating.toFixed(1)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                );
+              })
+            )}
+          </ScrollView>
+        )}
 
         {__DEV__ && (
           <Pressable
@@ -297,8 +334,8 @@ export default function Home() {
             onPress={async () => {
               await AsyncStorage.clear();
               useAuthStore.getState().reset();
-              useSavedStore.getState().clearSaved();
-              useTripsStore.getState().clearTrips();
+              useSavedStore.getState().clear();
+              useTripsStore.getState().clear();
               usePreferencesStore.setState({ language: "en", currency: "USD" });
             }}
             className="mx-lg mt-xl items-center justify-center rounded-full border border-line py-xs"
@@ -309,6 +346,12 @@ export default function Home() {
           </Pressable>
         )}
       </ScrollView>
+
+      {toast && (
+        <View className="absolute left-lg right-lg" style={{ bottom: 16 }}>
+          <Toast message={toast} />
+        </View>
+      )}
     </View>
   );
 }

@@ -64,8 +64,10 @@ export interface Destination {
   city: string;
   country: string;
   blurb: string;
-  priceFrom: number;
-  currency: CurrencyCode;
+  /** Cheapest flight to this city. Null when no flight serves it. */
+  priceFrom: number | null;
+  /** Currency of priceFrom. Null when priceFrom is null. */
+  currency: CurrencyCode | null;
   /** Aggregate traveller rating, 0–5, one decimal */
   rating: number;
   /** Remote hero photo (Unsplash CDN) */
@@ -81,8 +83,12 @@ export interface Deal {
   subtitle: string;
   price: number;
   currency: CurrencyCode;
+  /** What the price covers, so a nightly price is never shown as a trip total */
+  priceUnit: "trip" | "night" | "day";
   /** id of the referenced Flight, Hotel, or CarRental */
   refId: string;
+  /** Destination airport of a flight deal */
+  destinationCode?: string;
   /** Remote card photo (Unsplash CDN) */
   imageUrl: string;
   /** True → shown in the home hero carousel for its mode.

@@ -10,3 +10,5 @@ const reportError = (table: string, operation: string) =>
 
 export const catalog = createCatalog(supabase, reportError);
 export const account = createAccount(supabase, reportError);
+
+export type { TripInput } from "./account";

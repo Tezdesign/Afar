@@ -53,7 +53,7 @@ Rules every slice must follow:
 4. **Human decides, AI proposes.** Anything with a cost or a commitment ends in a tap, never a spoken yes. Voice is an input mode, the card is the record.
 5. **Unknown is a valid state.** A visa rule with no source shows "Check visa", never a guess.
 6. **Guests first.** Browsing, searching and results never require an account. Sign in is asked at save, alert or book.
-7. **Verify every caller.** Any server route that acts for a person follows the existing shape: `getVerifiedClerkUserId()` first, then the privileged call. Never trust a client supplied user id. Two kinds of route are exceptions, and each spec says so: public routes with no personal input (`/api/visa-data`, and `/api/flights` with its caps), and signed webhooks (the Clerk deletion webhook in 0004, verified by Clerk's signature).
+7. **Verify every caller.** Any server route that acts for a person follows the existing shape: `getVerifiedClerkUserId()` first, then the privileged call. Never trust a client supplied user id. Two kinds of route are exceptions, and each spec says so: public routes with no personal input (`/api/visa-data`, and `/api/flights` with its caps), and signed webhooks (the Clerk deletion webhook in 0004, a Supabase Edge Function verified by Clerk's signature).
 
 Shared decisions:
 
@@ -95,7 +95,7 @@ Build approach is **Tracer Bullet**, taken from the engineer's answer (no approa
 - [ ] `docs/afar-ux/README.md` says Ideate and Prototype have not started. Update it, since both are done in Figma and FigJam.
 - [ ] Add the Figma file link and the umbrella spec to `AGENTS.md` (the `/sync` skill owns that file).
 - [ ] The visa values in the Figma prototype are illustrative. The app now uses the Passport Index dataset (0002), which is real but not official. Before release, compare a sample of pairs with official pages, as 0002 says.
-- [ ] Three API routes now exist across the children: `/api/visa-data` (0002), `/api/flights` (0003) and `/api/clerk-webhook` (0004). A production build needs the routes deployed (see `eas-hosting`) and `EXPO_PUBLIC_API_BASE_URL` set, and the Clerk webhook needs that public URL.
+- [ ] Two API routes exist across the children: `/api/visa-data` (0002) and `/api/flights` (0003). A production build needs them deployed (see `eas-hosting`) and `EXPO_PUBLIC_API_BASE_URL` set. The Clerk webhook (0004) is a Supabase Edge Function and does not need them.
 - [ ] `AGENTS.md` (through `/sync`) needs one update from the children together: data now lives in Supabase after 0004, live prices and the visa dataset come through API routes, `src/data` loses the catalog files, and the new skills and MCP server from 0004 are listed.
 - [ ] The 89% and 12% survey figures come from a secondary source and the original PDF was not read. Do not quote them in any public material.
 - [ ] `main` is one commit ahead of this branch. Pull before building.

@@ -6,23 +6,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DataLabel } from "@/components/dataLabel";
 import { FieldPicker } from "@/components/fieldPicker";
+import { LoadError } from "@/components/loadError";
 import { SearchChipRow } from "@/components/searchChipRow";
-import { airports } from "@/data/airports";
-import { flights } from "@/data/flights";
+import { SkeletonBar, SkeletonCard } from "@/components/skeleton";
 import { parseISODate } from "@/lib/dates";
+import { catalog } from "@/lib/db";
 import { posthog } from "@/lib/posthog";
 import type { Field } from "@/lib/searchChips";
-import { searchFlights } from "@/lib/searchFlights";
+import { useAsync } from "@/lib/useAsync";
+import { useAirportStore } from "@/store/airportStore";
 import { useSearchStore } from "@/store/searchStore";
 import { colors } from "@/theme/colors";
-
-const CARD_SHADOW = {
-  shadowColor: "#17181F",
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 8,
-  elevation: 2,
-} as const;
+import { CARD_SHADOW } from "@/theme/shadow";
 
 const formatDate = (iso: string, weekday = false) =>
   parseISODate(iso).toLocaleDateString("en-US", {
@@ -31,29 +26,49 @@ const formatDate = (iso: string, weekday = false) =>
     day: "numeric",
   });
 
-const cityOf = (code: string) =>
-  airports.find((a) => a.code === code)?.city ?? code;
-
 export default function Results() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useSearchStore();
   const setSearchParams = useSearchStore((s) => s.setSearchParams);
+  const airports = useAirportStore((s) => s.airports);
   const [picker, setPicker] = useState<Field | null>(null);
 
-  const { results, suggestions } = searchFlights(flights, params);
-  const none = results.length === 0;
+  const cityOf = (code: string) =>
+    airports.find((a) => a.code === code)?.city ?? code;
 
-  // Fires when the screen appears and whenever an edit changes the list.
+  // Only the fields that filter flights, so editing something else (such as
+  // dismissing a "not understood" chip) does not search again.
+  const searchKey = JSON.stringify([
+    params.origin,
+    params.destination,
+    params.anywhere,
+    params.month,
+    params.nights,
+    params.departDate,
+    params.directOnly,
+    params.maxPrice,
+  ]);
+  const { state, retry } = useAsync(
+    () => catalog.searchFlights(params),
+    searchKey,
+  );
+  const results = state.status === "ready" ? state.data.results : [];
+  const suggestions = state.status === "ready" ? state.data.suggestions : [];
+  const none = state.status === "ready" && results.length === 0;
+
+  // Fires when results arrive and whenever an edit changes the list.
+  const resultCount = state.status === "ready" ? results.length : null;
   const hasBudget = params.maxPrice !== null;
   const hasUnrecognized = params.unrecognized.length > 0;
   useEffect(() => {
+    if (resultCount === null) return;
     posthog?.capture("results_viewed", {
-      result_count: results.length,
+      result_count: resultCount,
       has_budget: hasBudget,
       has_unrecognized: hasUnrecognized,
     });
-  }, [results.length, hasBudget, hasUnrecognized]);
+  }, [resultCount, hasBudget, hasUnrecognized]);
 
   return (
     <View className="flex-1 bg-cloud">
@@ -80,7 +95,16 @@ export default function Results() {
 
         <SearchChipRow compact onEdit={setPicker} />
 
-        {none ? (
+        {state.status === "loading" ? (
+          <>
+            <SkeletonBar className="h-4 w-[140px]" />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : state.status === "error" ? (
+          <LoadError title="Couldn’t load flights" onRetry={retry} />
+        ) : none ? (
           <>
             <View className="gap-sm px-md pt-xl pb-md">
               <Text className="text-title text-ink">No flights match yet</Text>

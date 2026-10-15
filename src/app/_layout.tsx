@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClerkProvider, useAuth, useUser } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { PostHogErrorBoundary, PostHogProvider } from "posthog-react-native";
@@ -14,11 +15,13 @@ import { StreamVideo } from "@stream-io/video-react-native-sdk";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { ReactNode, useEffect, useRef } from "react";
-import { Image, View } from "react-native";
+import { Image, Text, View } from "react-native";
 
 import { images } from "@/constants/images";
+import { LoadError } from "@/components/loadError";
 import { posthog } from "@/lib/posthog";
 import { useStreamVideoClient } from "@/lib/stream";
+import { useAirportStore } from "@/store/airportStore";
 import { useAuthStore } from "@/store/authStore";
 import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
@@ -44,24 +47,28 @@ function PostHogErrorFallback() {
   );
 }
 
-// Points authStore/savedStore/tripsStore at the given account's own
-// AsyncStorage bucket ("guest" while signed out) and loads whatever was
-// saved there before. This is how a saved deal survives that same
-// account's logout+login, while a different account on the same device
-// never sees it — each scope is its own bucket, nothing is shared.
+// Points authStore at the given account's own AsyncStorage bucket ("guest"
+// while signed out) and loads whatever was saved there before. Saved and
+// trips are not here: they live in Supabase and load after sign in.
 function applyStorageScope(scope: string) {
   useAuthStore.persist.setOptions({ name: `auth-store:${scope}` });
-  useSavedStore.persist.setOptions({ name: `saved-store:${scope}` });
-  useTripsStore.persist.setOptions({ name: `trips-store:${scope}` });
-
   useAuthStore.persist.rehydrate();
-  useSavedStore.persist.rehydrate();
-  useTripsStore.persist.rehydrate();
+}
+
+// Saved and trips used to be stored on the device, one bucket per account.
+// They live in Supabase now, so the old buckets are dropped on purpose. Safe
+// to run on every start: once they are gone there is nothing left to remove.
+async function removeLegacyDeviceKeys() {
+  const keys = await AsyncStorage.getAllKeys();
+  const old = keys.filter(
+    (key) => key.startsWith("saved-store:") || key.startsWith("trips-store:"),
+  );
+  if (old.length > 0) await AsyncStorage.multiRemove(old);
 }
 
 // Runs side effects tied to the Clerk sign-in/sign-out transition: swaps
-// the local stores to the right account's storage scope, and keeps
-// PostHog's identified user in sync.
+// the local store to the right account's storage scope, loads or clears the
+// account's saved and trips, and keeps PostHog's identified user in sync.
 function SessionEffects() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
@@ -71,12 +78,25 @@ function SessionEffects() {
   const activeScope = useRef<string | null>(null);
 
   useEffect(() => {
+    removeLegacyDeviceKeys().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!isLoaded) return;
 
     const scope = isSignedIn && user ? user.id : "guest";
     if (activeScope.current !== scope) {
       activeScope.current = scope;
       applyStorageScope(scope);
+
+      // Clearing first ends the previous session's writes, so nothing from
+      // it can land in this account or change what this person sees.
+      useSavedStore.getState().clear();
+      useTripsStore.getState().clear();
+      if (scope !== "guest") {
+        useSavedStore.getState().load();
+        useTripsStore.getState().load();
+      }
     }
 
     if (!isSignedIn) {
@@ -128,18 +148,47 @@ function StreamVideoRoot({ children }: { children: ReactNode }) {
 
 function AppGate() {
   const { isLoaded } = useAuth();
+  const airportStatus = useAirportStore((state) => state.status);
+  const loadAirports = useAirportStore((state) => state.load);
 
-  // Splash — shown while Clerk restores the session from the token cache.
-  // Lives here (not a route) since both (auth) and (tabs) need Clerk to be
-  // loaded before their own guards can decide where to send the user.
-  if (!isLoaded) {
+  // The airports feed the chips, the pickers and the sentence parser, so
+  // nothing renders until they are in. Starts once Clerk is ready so the
+  // request carries the right session.
+  useEffect(() => {
+    if (isLoaded) loadAirports();
+  }, [isLoaded, loadAirports]);
+
+  // Splash: while Clerk restores the session and the airports load. Lives
+  // here (not a route) since both (auth) and (tabs) need Clerk to be loaded
+  // before their own guards can decide where to send the user.
+  if (airportStatus === "error") {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
+      <View className="flex-1 items-center justify-center gap-xl bg-white px-lg">
         <Image
           source={images.afarLogo}
           resizeMode="contain"
           style={{ width: 220, height: 79 }}
         />
+        <View className="w-full">
+          <LoadError title="Can’t reach Afar" onRetry={loadAirports} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!isLoaded || airportStatus !== "ready") {
+    return (
+      <View className="flex-1 items-center justify-center gap-xl bg-white">
+        <Image
+          source={images.afarLogo}
+          resizeMode="contain"
+          style={{ width: 220, height: 79 }}
+        />
+        {isLoaded && (
+          <Text className="text-caption text-ink opacity-50">
+            Getting things ready
+          </Text>
+        )}
       </View>
     );
   }

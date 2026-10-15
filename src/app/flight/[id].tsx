@@ -4,17 +4,13 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { airports } from "@/data/airports";
-import { flights } from "@/data/flights";
+import { LoadError } from "@/components/loadError";
+import { SkeletonBar, SkeletonCard } from "@/components/skeleton";
 import { parseISODate } from "@/lib/dates";
-
-const CARD_SHADOW = {
-  shadowColor: "#17181F",
-  shadowOpacity: 0.08,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 8,
-  elevation: 2,
-} as const;
+import { catalog } from "@/lib/db";
+import { useAsync } from "@/lib/useAsync";
+import { useAirportStore } from "@/store/airportStore";
+import { CARD_SHADOW } from "@/theme/shadow";
 
 const formatDate = (iso: string) =>
   parseISODate(iso).toLocaleDateString("en-US", {
@@ -33,8 +29,59 @@ export default function FlightInfo() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const airports = useAirportStore((s) => s.airports);
+  const { state, retry } = useAsync(() => catalog.fetchFlight(id), id);
 
-  const flight = flights.find((f) => f.id === id);
+  const backButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+      onPress={() => router.back()}
+      hitSlop={12}
+      className="w-10 h-10 items-center justify-center rounded-full bg-white"
+    >
+      <Ionicons name="chevron-back" size={20} color="#17181F" />
+    </Pressable>
+  );
+
+  if (state.status === "loading") {
+    return (
+      <View
+        className="flex-1 bg-cloud px-lg gap-md"
+        style={{ paddingTop: insets.top + 12 }}
+      >
+        {backButton}
+        <SkeletonBar className="h-[30px] w-[220px]" />
+        <SkeletonBar className="h-4 w-[280px]" />
+        <SkeletonBar className="h-11 w-[150px]" />
+        <SkeletonCard />
+        <SkeletonCard />
+      </View>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <View
+        className="flex-1 bg-cloud px-lg gap-md"
+        style={{ paddingTop: insets.top + 12 }}
+      >
+        {backButton}
+        <View className="pt-xxl gap-sm">
+          <LoadError title="Couldn’t load this flight" onRetry={retry} />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            className="h-[52px] items-center justify-center self-start px-md"
+          >
+            <Text className="text-body text-cobalt-500">Go back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const flight = state.data;
   const origin = airports.find((a) => a.code === flight?.originCode);
   const destination = airports.find((a) => a.code === flight?.destinationCode);
 
