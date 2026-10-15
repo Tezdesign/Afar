@@ -10,11 +10,10 @@ import { unsplash } from "./photos";
 // through to the "Trending now" list.
 export const deals: Deal[] = [
   {
-    id: "deal-paris-fare-drop",
+    id: "deal-tunis-paris",
     type: "flight",
-    title: "Paris fare drop",
-    subtitle: "Round trip from Tunis",
-    discountPercent: 18,
+    title: "Tunis to Paris",
+    subtitle: "Air France · round trip",
     price: 214,
     currency: "EUR",
     refId: "flight-tun-cdg-1",
@@ -26,7 +25,6 @@ export const deals: Deal[] = [
     type: "flight",
     title: "Barcelona to Rome",
     subtitle: "Vueling · direct",
-    discountPercent: 12,
     price: 58,
     currency: "EUR",
     refId: "flight-bcn-fco-1",
@@ -58,7 +56,6 @@ export const deals: Deal[] = [
     type: "car",
     title: "Weekend wheels in Rome",
     subtitle: "Avis SUV rental",
-    discountPercent: 15,
     price: 44,
     currency: "EUR",
     refId: "car-avis-rome",
@@ -70,7 +67,6 @@ export const deals: Deal[] = [
     type: "car",
     title: "City wheels in Barcelona",
     subtitle: "Sixt · economy",
-    discountPercent: 10,
     price: 31,
     currency: "EUR",
     refId: "car-sixt-barcelona",

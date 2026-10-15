@@ -28,10 +28,6 @@ export interface Flight {
   durationMinutes: number;
   /** 0 = direct */
   stops: number;
-  /** e.g. "Fare drop −18%" */
-  dealBadge?: string;
-  /** Struck-through "was" price, shown alongside a dealBadge */
-  previousPrice?: number;
 }
 
 export interface Hotel {
@@ -78,7 +74,6 @@ export interface Deal {
   type: DealType;
   title: string;
   subtitle: string;
-  discountPercent?: number;
   price: number;
   currency: CurrencyCode;
   /** id of the referenced Flight, Hotel, or CarRental */

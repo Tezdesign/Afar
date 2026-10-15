@@ -1,14 +1,33 @@
-import { useAuth } from "@clerk/expo";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { destinations } from "@/data/destinations";
+import { Chip } from "@/components/chip";
+import { FieldPicker } from "@/components/fieldPicker";
+import { SearchChipRow } from "@/components/searchChipRow";
+import { EXAMPLE_PROMPTS } from "@/lib/parseSearch";
 import { posthog } from "@/lib/posthog";
-import type { Destination } from "@/types/travel";
+import {
+  buildChips,
+  fieldValue,
+  FIELD_NAME,
+  type Field,
+} from "@/lib/searchChips";
+import { submitSentence } from "@/lib/submitSentence";
+import { useSearchStore } from "@/store/searchStore";
+import { colors } from "@/theme/colors";
 
 const CARD_SHADOW = {
   shadowColor: "#17181F",
@@ -18,365 +37,270 @@ const CARD_SHADOW = {
   elevation: 2,
 } as const;
 
-const CALENDAR_DISPLAY = Platform.select<"inline" | "calendar" | "default">({
-  ios: "inline",
-  android: "calendar",
-  default: "default",
-});
+// Placeholder at 40% ink, like the Figma input.
+const PLACEHOLDER = "rgba(23,24,31,0.4)";
 
-const formatDate = (date: Date) =>
-  date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// Header wash from the Figma frames: cobalt-100 fading into the page.
+const WASH = ["rgba(220,229,253,0.9)", "rgba(241,244,249,0)"] as const;
 
-type Section = "destination" | "dates" | "guests" | null;
+const FORM_FIELDS: Field[] = ["where", "when", "budget", "from"];
 
-export default function WhereTo() {
+export default function Search() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isSignedIn } = useAuth();
+  // Entry points (Home pill, example, deal card) reset the store before they
+  // navigate here, so a new search never starts with an old one's chips.
+  const { q, source, focus } = useLocalSearchParams<{
+    q?: string;
+    source?: string;
+    focus?: string;
+  }>();
+  const params = useSearchStore();
 
-  const [activeSection, setActiveSection] = useState<Section>(null);
-  const toggleSection = (section: Section) =>
-    setActiveSection((current) => (current === section ? null : section));
+  const [text, setText] = useState(q ?? "");
+  const [focused, setFocused] = useState(false);
+  const [submitted, setSubmitted] = useState(Boolean(q));
+  const [picker, setPicker] = useState<Field | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
 
-  const [selected, setSelected] = useState<Destination | null>(null);
+  const hasChips = buildChips(params, false).some((c) => c.label);
+  const isEmpty = !hasChips && params.unrecognized.length === 0;
+  const hasWhere = params.destination !== null || params.anywhere;
+  const hasText = text.trim().length > 0;
 
-  const [checkIn, setCheckIn] = useState<Date | null>(null);
-  const [checkOut, setCheckOut] = useState<Date | null>(null);
-  const [activeDateField, setActiveDateField] = useState<
-    "checkIn" | "checkOut"
-  >("checkIn");
+  const submit = (sentence: string) => {
+    if (!submitSentence(sentence)) return;
+    setText(sentence);
+    setSubmitted(true);
+    Keyboard.dismiss();
+  };
 
-  const [adults, setAdults] = useState(1);
-  const [kids, setKids] = useState(0);
-  const [guestsConfirmed, setGuestsConfirmed] = useState(false);
+  const search = () => {
+    posthog?.capture("travel_search_submitted", {
+      has_destination: params.destination !== null,
+      anywhere: params.anywhere,
+      has_origin: params.origin !== null,
+      has_dates: Boolean(params.month || params.departDate),
+      has_budget: params.maxPrice !== null,
+      unrecognized_count: params.unrecognized.length,
+    });
+    router.push("/results");
+  };
 
   return (
-    <View
-      className="flex-1 bg-cloud px-lg"
-      style={{
-        paddingTop: insets.top + 12,
-        paddingBottom: insets.bottom + 24,
-      }}
+    <KeyboardAvoidingView
+      className="flex-1 bg-cloud"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.replace(isSignedIn ? "/" : "/onboarding")}
-        hitSlop={12}
-        className="w-10 h-10 items-center justify-center rounded-full bg-white"
+      <LinearGradient
+        colors={WASH}
+        pointerEvents="none"
+        style={{ position: "absolute", top: 0, left: 0, right: 0, height: 260 }}
+      />
+
+      <ScrollView
+        className="flex-1"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top + 12,
+          paddingHorizontal: 24,
+          paddingVertical: 16,
+          gap: 16,
+        }}
       >
-        <Ionicons name="close" size={20} color="#17181F" />
-      </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close search"
+          onPress={() => router.replace("/")}
+          hitSlop={12}
+          className="w-10 h-10 items-center justify-center rounded-full bg-white"
+        >
+          <Ionicons name="close" size={20} color={colors.ink} />
+        </Pressable>
 
-      <Text className="text-display text-ink mt-xl mb-lg">Where to?</Text>
+        <Text className="text-display text-ink">Where to?</Text>
+        <View className="h-[3px] w-12 rounded-sm bg-cobalt-500" />
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View
-          className="bg-white rounded-lg overflow-hidden"
+          className={`bg-white rounded-lg p-md gap-sm border-2 ${
+            focused ? "border-cobalt-300" : "border-transparent"
+          }`}
           style={CARD_SHADOW}
         >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => toggleSection("destination")}
-            className="flex-row items-center gap-sm px-md py-md border-b border-line"
-          >
-            <Ionicons name="location" size={18} color="#1D4FD6" />
-            <View className="flex-1">
-              <Text className="text-caption text-ink opacity-50">
-                Destination
-              </Text>
-              <Text className="text-body text-ink">
-                {selected
-                  ? `${selected.city}, ${selected.country}`
-                  : "Where are you going?"}
-              </Text>
-            </View>
-            <Ionicons
-              name={
-                activeSection === "destination" ? "chevron-up" : "chevron-down"
+          <Text className="text-caption text-ink opacity-50">
+            Describe your trip
+          </Text>
+          <View className="flex-row items-center gap-sm">
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onSubmitEditing={() => submit(text)}
+              autoFocus={focus === "1"}
+              multiline
+              submitBehavior="submit"
+              returnKeyType="search"
+              placeholder={
+                isEmpty
+                  ? `Try “${EXAMPLE_PROMPTS[0]}”`
+                  : "Describe the whole trip, e.g. “Paris in March under 300 EUR”"
               }
-              size={16}
-              color="#17181F"
+              placeholderTextColor={PLACEHOLDER}
+              accessibilityLabel="Describe your trip"
+              className="flex-1 text-body text-ink"
             />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => toggleSection("dates")}
-            className="flex-row items-center gap-sm px-md py-md border-b border-line"
-          >
-            <Ionicons name="calendar" size={18} color="#1D4FD6" />
-            <View className="flex-1">
-              <Text className="text-caption text-ink opacity-50">Dates</Text>
-              <Text className="text-body text-ink">
-                {checkIn && checkOut
-                  ? `${formatDate(checkIn)} – ${formatDate(checkOut)}`
-                  : "Add dates"}
-              </Text>
-            </View>
-            <Ionicons
-              name={activeSection === "dates" ? "chevron-up" : "chevron-down"}
-              size={16}
-              color="#17181F"
-            />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => toggleSection("guests")}
-            className="flex-row items-center gap-sm px-md py-md"
-          >
-            <Ionicons name="people" size={18} color="#1D4FD6" />
-            <View className="flex-1">
-              <Text className="text-caption text-ink opacity-50">
-                Travelers
-              </Text>
-              <Text className="text-body text-ink">
-                {guestsConfirmed
-                  ? `${adults} adult${adults > 1 ? "s" : ""}${
-                      kids > 0 ? `, ${kids} kid${kids > 1 ? "s" : ""}` : ""
-                    }`
-                  : "Add guests"}
-              </Text>
-            </View>
-            <Ionicons
-              name={activeSection === "guests" ? "chevron-up" : "chevron-down"}
-              size={16}
-              color="#17181F"
-            />
-          </Pressable>
-        </View>
-
-        {activeSection === "destination" && (
-          <View
-            className="bg-white rounded-lg mt-sm overflow-hidden"
-            style={CARD_SHADOW}
-          >
-            <ScrollView style={{ maxHeight: 240 }} nestedScrollEnabled>
-              {destinations.map((destination, index) => (
-                <Pressable
-                  key={destination.id}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    setSelected(destination);
-                    setActiveSection(null);
-                    posthog?.capture("search_destination_selected", {
-                      destination_id: destination.id,
-                      destination_country: destination.country,
-                    });
-                  }}
-                  className={`flex-row items-center justify-between px-md py-md ${
-                    index < destinations.length - 1
-                      ? "border-b border-line"
-                      : ""
-                  }`}
-                >
-                  <View>
-                    <Text className="text-body text-ink font-jakarta-bold">
-                      {destination.city}
-                    </Text>
-                    <Text className="text-[13px] text-ink opacity-50">
-                      {destination.country}
-                    </Text>
-                  </View>
-                  <Text className="text-[13px] text-ink opacity-60">
-                    from {destination.priceFrom} {destination.currency}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {activeSection === "dates" && (
-          <View
-            className="bg-white rounded-lg mt-sm overflow-hidden px-md py-md"
-            style={CARD_SHADOW}
-          >
-            <View className="flex-row gap-sm mb-md">
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setActiveDateField("checkIn")}
-                className={`flex-1 items-center rounded-full py-sm ${
-                  activeDateField === "checkIn" ? "bg-cobalt-500" : "bg-cloud"
-                }`}
-              >
-                <Text
-                  className={`text-[13px] font-jakarta-bold ${
-                    activeDateField === "checkIn"
-                      ? "text-white"
-                      : "text-ink opacity-60"
-                  }`}
-                >
-                  {checkIn ? `Check-in · ${formatDate(checkIn)}` : "Check-in"}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setActiveDateField("checkOut")}
-                className={`flex-1 items-center rounded-full py-sm ${
-                  activeDateField === "checkOut" ? "bg-cobalt-500" : "bg-cloud"
-                }`}
-              >
-                <Text
-                  className={`text-[13px] font-jakarta-bold ${
-                    activeDateField === "checkOut"
-                      ? "text-white"
-                      : "text-ink opacity-60"
-                  }`}
-                >
-                  {checkOut
-                    ? `Check-out · ${formatDate(checkOut)}`
-                    : "Check-out"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* The native calendar's own layout/typography can't be reached
-                by NativeWind classes — it's a platform view, per AGENTS.md's
-                style-exception rule. */}
-            <DateTimePicker
-              value={
-                (activeDateField === "checkIn" ? checkIn : checkOut) ??
-                checkIn ??
-                new Date()
-              }
-              mode="date"
-              display={CALENDAR_DISPLAY}
-              minimumDate={
-                activeDateField === "checkOut" && checkIn
-                  ? checkIn
-                  : new Date()
-              }
-              accentColor="#1D4FD6"
-              onChange={(_event, date) => {
-                if (!date) return;
-                if (activeDateField === "checkIn") {
-                  setCheckIn(date);
-                  if (checkOut && checkOut < date) setCheckOut(null);
-                  setActiveDateField("checkOut");
-                } else {
-                  setCheckOut(date);
-                }
-              }}
-            />
-          </View>
-        )}
-
-        {activeSection === "guests" && (
-          <View
-            className="bg-white rounded-lg mt-sm overflow-hidden px-md"
-            style={CARD_SHADOW}
-          >
-            <View className="flex-row items-center justify-between py-md border-b border-line">
-              <View>
-                <Text className="text-body text-ink font-jakarta-bold">
-                  Adults
-                </Text>
-                <Text className="text-[13px] text-ink opacity-50">
-                  Ages 13 or above
-                </Text>
-              </View>
-              <View className="flex-row items-center gap-md">
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setAdults((n) => Math.max(1, n - 1))}
-                  className="w-8 h-8 items-center justify-center rounded-full border border-line"
-                >
-                  <Ionicons name="remove" size={16} color="#17181F" />
-                </Pressable>
-                <Text className="text-body text-ink w-6 text-center">
-                  {adults}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setAdults((n) => n + 1)}
-                  className="w-8 h-8 items-center justify-center rounded-full border border-line"
-                >
-                  <Ionicons name="add" size={16} color="#17181F" />
-                </Pressable>
-              </View>
-            </View>
-
-            <View className="flex-row items-center justify-between py-md">
-              <View>
-                <Text className="text-body text-ink font-jakarta-bold">
-                  Kids
-                </Text>
-                <Text className="text-[13px] text-ink opacity-50">
-                  Ages 2–12
-                </Text>
-              </View>
-              <View className="flex-row items-center gap-md">
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setKids((n) => Math.max(0, n - 1))}
-                  className="w-8 h-8 items-center justify-center rounded-full border border-line"
-                >
-                  <Ionicons name="remove" size={16} color="#17181F" />
-                </Pressable>
-                <Text className="text-body text-ink w-6 text-center">
-                  {kids}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setKids((n) => n + 1)}
-                  className="w-8 h-8 items-center justify-center rounded-full border border-line"
-                >
-                  <Ionicons name="add" size={16} color="#17181F" />
-                </Pressable>
-              </View>
-            </View>
-
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                setGuestsConfirmed(true);
-                setActiveSection(null);
-                posthog?.capture("search_travelers_confirmed", {
-                  adult_count: adults,
-                  child_count: kids,
-                });
-              }}
-              className="items-center justify-center rounded-full bg-cobalt-500 py-sm my-md"
+              accessibilityLabel="Read my trip"
+              disabled={!hasText}
+              onPress={() => submit(text)}
+              className={`w-10 h-10 items-center justify-center rounded-full ${
+                hasText ? "bg-cobalt-500" : "bg-cobalt-100"
+              }`}
             >
-              <Text className="text-[13px] font-jakarta-bold text-white">
-                Done
-              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={hasText ? "#FFFFFF" : colors.cobalt[300]}
+              />
             </Pressable>
           </View>
+          {isEmpty && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/assistant")}
+              className="flex-row items-center gap-sm self-start py-xs"
+            >
+              <Ionicons
+                name="chatbubble-outline"
+                size={18}
+                color={colors.cobalt[500]}
+              />
+              <Text className="text-[14px] font-jakarta-medium text-cobalt-500">
+                Prefer to talk it through? Ask Afar
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {isEmpty ? (
+          <>
+            <Text className="text-caption text-ink opacity-50">Try</Text>
+            <View className="flex-row flex-wrap gap-sm">
+              {EXAMPLE_PROMPTS.map((example) => (
+                <Chip
+                  key={example}
+                  variant="suggestion"
+                  label={example}
+                  onPress={() => submit(example)}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text className="text-caption text-ink opacity-50">
+              {source === "deal" && !submitted
+                ? "From your deal"
+                : "Here’s what we understood"}
+            </Text>
+            <SearchChipRow showEmpty onEdit={setPicker} />
+            <Text className="text-body text-ink opacity-60">
+              Tap a chip to change it, or × to remove it.
+            </Text>
+            {params.unrecognized.length > 0 && (
+              <View className="flex-row items-start gap-sm rounded-md bg-ember-50 p-md">
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={20}
+                  color={colors.ember[700]}
+                />
+                <Text className="flex-1 text-body text-ink">
+                  We couldn’t match{" "}
+                  {params.unrecognized.map((words) => `“${words}”`).join(", ")}.
+                  It won’t change your search.
+                </Text>
+              </View>
+            )}
+          </>
         )}
+
+        <View className="bg-white rounded-lg overflow-hidden" style={CARD_SHADOW}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: formOpen }}
+            onPress={() => setFormOpen((open) => !open)}
+            className="flex-row items-center gap-sm p-md"
+          >
+            <Text className="flex-1 text-body text-ink">
+              {formOpen ? "Hide the form" : "Use the form instead"}
+            </Text>
+            <Ionicons
+              name={formOpen ? "chevron-up" : "chevron-forward"}
+              size={20}
+              color={colors.ink}
+            />
+          </Pressable>
+          {formOpen &&
+            FORM_FIELDS.map((field) => {
+              const value = fieldValue(params, field);
+              return (
+                <Pressable
+                  key={field}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    value
+                      ? `${FIELD_NAME[field]}, ${value}, tap to change`
+                      : `${FIELD_NAME[field]}, not set, tap to add`
+                  }
+                  onPress={() => setPicker(field)}
+                  className="flex-row items-center gap-sm p-md border-t border-line"
+                >
+                  <View className="flex-1">
+                    <Text className="text-caption text-ink opacity-50">
+                      {field === "where"
+                        ? "Where"
+                        : field === "when"
+                          ? "When"
+                          : field === "budget"
+                            ? "Budget"
+                            : "From"}
+                    </Text>
+                    <Text
+                      className={`text-body text-ink ${value ? "" : "opacity-40"}`}
+                    >
+                      {value ?? "Not set"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.ink} />
+                </Pressable>
+              );
+            })}
+        </View>
       </ScrollView>
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={!selected}
-        onPress={() => {
-          if (!selected) return;
-          posthog?.capture("travel_search_submitted", {
-            destination_id: selected.id,
-            destination_country: selected.country,
-            has_dates: Boolean(checkIn && checkOut),
-            adult_count: adults,
-            child_count: kids,
-          });
-        }}
-        className={`flex-row items-center justify-center gap-sm rounded-full py-md mt-sm ${
-          selected ? "bg-cobalt-500" : "bg-cobalt-100"
-        }`}
+      <View
+        className="px-lg pt-md"
+        style={{ paddingBottom: insets.bottom + 16 }}
       >
-        <Ionicons
-          name="search"
-          size={16}
-          color={selected ? "#fff" : "#7C97F0"}
-        />
-        <Text
-          className={`text-[14px] font-jakarta-bold ${
-            selected ? "text-white" : "text-cobalt-300"
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !hasWhere }}
+          disabled={!hasWhere}
+          onPress={search}
+          className={`items-center justify-center rounded-full bg-cobalt-500 py-md ${
+            hasWhere ? "" : "opacity-40"
           }`}
         >
-          Search
-        </Text>
-      </Pressable>
-    </View>
+          <Text className="text-body text-white">
+            {params.unrecognized.length > 0 ? "Search without it" : "Search"}
+          </Text>
+        </Pressable>
+      </View>
+
+      <FieldPicker field={picker} onClose={() => setPicker(null)} />
+    </KeyboardAvoidingView>
   );
 }

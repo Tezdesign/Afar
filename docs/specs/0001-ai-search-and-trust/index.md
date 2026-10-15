@@ -1,7 +1,7 @@
 # 0001. AI search and trust (umbrella)
 
 **Date**: 2026-10-14
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 
@@ -10,12 +10,13 @@ This umbrella turns the UX work (empathize, define, ideate, prototype, and a res
 ## Structure
 
 - [0001-natural-language-search.md](0001-natural-language-search.md): a typed trip becomes editable chips, then honest flight results. Local only, no database. Supports outcomes O-1 and O-2.
+- [0002-passport-and-visa.md](0002-passport-and-visa.md): a passport setting, a small curated and honestly labelled visa rule list, badges and a visa card, and the in context passport prompt. Local only, no database. Supports outcome O-3.
 
 Planned children, not written yet (each gets its own `/architect` session when its turn comes):
 
 | Order | Slice | Supports | Needs first |
 |---|---|---|---|
-| 2 | Passport and visa awareness: `passportCountry`, picker, curated visa list with source and last checked date, badges, the in context passport prompt on Results | O-3 | Slice one (Results exists). Stays on the device at first. A verified visa source before shipping |
+| 2 | Passport and visa awareness (written, see 0002 above): `passportCountry`, picker, curated visa list with source and last checked date, badges, the in context passport prompt on Results | O-3 | Slice one (Results exists). Stays on the device at first. A verified visa source before shipping |
 | 3 | Guest access and sign in on demand: Saved and Trips stop redirecting, a sign in prompt appears at save, alert or book | O-1 | Slice one. Rework of the onboarding screen into that prompt |
 | 4 | Supabase and Clerk link: how Supabase learns the Clerk user, profile, alerts and the activity log tables | O-4 | Your sign off for the dependency (granted in principle, see Cross child contract) |
 | 5 | Assistant action cards and activity log: Plan, Preview, Confirm cards on the voice call, `create_alert` tool, undo, the Activity screen | O-4 | Slice 4. A price source decision for alerts to be more than a demo |
@@ -57,7 +58,7 @@ Shared decisions:
 - **Database**: Supabase is approved in principle for Afar's own data (profile, alerts, activity log). It is added only by the slice that needs it, and the Clerk link gets its own spec first. Until then, state stays in Zustand and AsyncStorage, scoped per account as `AGENTS.md` describes.
 - **Price source**: undecided. Until it is, prices are sample data and alerts are simulated and labelled demo.
 - **Data shapes in `searchStore`**: `origin`, `destination`, `anywhere`, `month`, `nights`, `departDate`, `returnDate`, `maxPrice`, `directOnly`. Later slices add fields, they do not rename these.
-- **New routes across the umbrella**: `/results` (slice 1), `/activity` (slice 5), a passport step inside `/onboarding` and a passport row in Profile (slice 2). The assistant stays the global floating button plus the entry inside the search line.
+- **New routes across the umbrella**: `/results` (slice 1), `/activity` (slice 5), a passport row in Profile (slice 2). There is no passport step in `/onboarding`: the passport is asked in context, on flight detail and on Results. The assistant stays the global floating button plus the entry inside the search line.
 - **Analytics**: product questions are answered with the existing PostHog instance. The research test list (deals strip, chips against a plain answer, visa badges, sign in timing, voice against text) is run as experiments, not assumed.
 
 ## Build plan
@@ -65,7 +66,7 @@ Shared decisions:
 Build approach is **Tracer Bullet**, taken from the engineer's answer (no approach was recorded in `AGENTS.md`, whose Build approach line is still unset). Each child is itself a thin end to end slice.
 
 1. Build child 0001, natural language search and results, satisfies **O-1**, **O-2**.
-2. Write and build the passport and visa child, satisfies **O-3**.
+2. Build the passport and visa child (written as 0002), satisfies **O-3**.
 3. Write and build the guest access and sign in on demand child, satisfies **O-1**.
 4. Write the Supabase and Clerk link child, then build it, satisfies **O-4**.
 5. Write and build the assistant action cards and activity log child, satisfies **O-4**.

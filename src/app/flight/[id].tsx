@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { airports } from "@/data/airports";
 import { flights } from "@/data/flights";
+import { parseISODate } from "@/lib/dates";
 
 const CARD_SHADOW = {
   shadowColor: "#17181F",
@@ -16,7 +17,7 @@ const CARD_SHADOW = {
 } as const;
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-US", {
+  parseISODate(iso).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -83,14 +84,6 @@ export default function FlightInfo() {
                 ? ` – ${formatDate(flight.returnDate)} · Round trip`
                 : " · One-way"}
             </Text>
-
-            {flight.dealBadge && (
-              <View className="self-start bg-ember-500 rounded-full px-sm py-xs mt-sm">
-                <Text className="text-[11px] font-jakarta-bold text-white">
-                  {flight.dealBadge}
-                </Text>
-              </View>
-            )}
           </Animated.View>
 
           {/* One cohesive block, sections separated by hairlines instead of
@@ -161,16 +154,11 @@ export default function FlightInfo() {
                 Total price
               </Text>
               <View className="items-end">
-                {flight.previousPrice && (
-                  <Text className="text-[13px] text-ink opacity-40 line-through">
-                    {flight.previousPrice} {flight.currency}
-                  </Text>
-                )}
                 <Text className="text-numeric text-ink">
                   {flight.price} {flight.currency}
                 </Text>
                 <Text className="text-[12px] text-ink opacity-50">
-                  per person
+                  per person · Sample data
                 </Text>
               </View>
             </View>

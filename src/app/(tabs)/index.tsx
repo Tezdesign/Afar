@@ -16,14 +16,19 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Chip } from "@/components/chip";
 import { deals } from "@/data/deals";
 import { destinations } from "@/data/destinations";
+import { flights } from "@/data/flights";
+import { EXAMPLE_PROMPTS } from "@/lib/parseSearch";
 import { posthog } from "@/lib/posthog";
+import { submitSentence } from "@/lib/submitSentence";
 import { useAuthStore } from "@/store/authStore";
 import { usePreferencesStore } from "@/store/preferencesStore";
 import { useSavedStore } from "@/store/savedStore";
+import { useSearchStore } from "@/store/searchStore";
 import { useTripsStore } from "@/store/tripsStore";
-import type { DealType } from "@/types/travel";
+import type { Deal, DealType } from "@/types/travel";
 
 const CARD_SHADOW = {
   shadowColor: "#17181F",
@@ -90,6 +95,42 @@ export default function Home() {
     setActiveDeal(index);
   };
 
+  // Every way into Search clears the old search first, so old chips never
+  // leak into a new one.
+  const resetSearch = useSearchStore((state) => state.reset);
+  const setSearchParams = useSearchStore((state) => state.setSearchParams);
+
+  const startSearch = () => {
+    resetSearch();
+    router.push({ pathname: "/search", params: { focus: "1" } });
+  };
+
+  const openSearch = () => {
+    resetSearch();
+    router.push("/search");
+  };
+
+  const startExample = (sentence: string) => {
+    submitSentence(sentence);
+    router.push({ pathname: "/search", params: { q: sentence } });
+  };
+
+  // A flight deal opens Search with only its destination filled. Hotel and
+  // car deals, and a flight that can't be found, open an empty Search.
+  const openDeal = (deal: Deal) => {
+    resetSearch();
+    const flight =
+      deal.type === "flight"
+        ? flights.find((f) => f.id === deal.refId)
+        : undefined;
+    if (!flight) {
+      router.push("/search");
+      return;
+    }
+    setSearchParams({ destination: flight.destinationCode });
+    router.push({ pathname: "/search", params: { source: "deal" } });
+  };
+
   const switchMode = (next: DealType) => {
     setMode(next);
     setActiveDeal(0);
@@ -152,7 +193,8 @@ export default function Home() {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push("/search")}
+          accessibilityLabel={`Search ${activeMode.label.toLowerCase()}`}
+          onPress={startSearch}
           className="mx-lg mb-md flex-row items-center gap-sm"
         >
           <View
@@ -168,6 +210,19 @@ export default function Home() {
             <Ionicons name="options" size={18} color="#fff" />
           </View>
         </Pressable>
+
+        {mode === "flight" && (
+          <View className="mx-lg mb-md flex-row flex-wrap gap-sm">
+            {EXAMPLE_PROMPTS.map((example) => (
+              <Chip
+                key={example}
+                variant="suggestion"
+                label={example}
+                onPress={() => startExample(example)}
+              />
+            ))}
+          </View>
+        )}
 
         {/* Segmented mode switch — solid-filled active pill on a white
             track, the house pattern for category switching. */}
@@ -206,10 +261,7 @@ export default function Home() {
 
         <View className="flex-row items-center justify-between px-lg mb-md">
           <Text className="text-title text-ink">{activeMode.heading}</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/search")}
-          >
+          <Pressable accessibilityRole="button" onPress={openSearch}>
             <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
               See all
             </Text>
@@ -231,11 +283,7 @@ export default function Home() {
             <Pressable
               key={deal.id}
               accessibilityRole="button"
-              onPress={() =>
-                deal.type === "flight"
-                  ? router.push(`/flight/${deal.refId}`)
-                  : router.push("/search")
-              }
+              onPress={() => openDeal(deal)}
               className="rounded-lg overflow-hidden"
               style={[{ width: cardWidth, height: 188 }, CARD_SHADOW]}
             >
@@ -250,15 +298,7 @@ export default function Home() {
                 end={{ x: 1, y: 0.7 }}
                 style={{ flex: 1, padding: 16, justifyContent: "space-between" }}
               >
-                {deal.discountPercent ? (
-                  <View className="self-start bg-ember-500 rounded-full px-sm py-xs">
-                    <Text className="text-[11px] font-jakarta-bold text-white">
-                      -{deal.discountPercent}%
-                    </Text>
-                  </View>
-                ) : (
-                  <View />
-                )}
+                <View />
 
                 <View>
                   <Text className="text-title text-white">{deal.title}</Text>
@@ -291,10 +331,7 @@ export default function Home() {
 
         <View className="flex-row items-center justify-between px-lg mt-lg mb-md">
           <Text className="text-title text-ink">Popular destinations</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/search")}
-          >
+          <Pressable accessibilityRole="button" onPress={openSearch}>
             <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
               See all
             </Text>
@@ -312,7 +349,7 @@ export default function Home() {
               <Pressable
                 key={destination.id}
                 accessibilityRole="button"
-                onPress={() => router.push("/search")}
+                onPress={openSearch}
                 className="bg-white rounded-md overflow-hidden"
                 style={[{ width: 172 }, CARD_SHADOW]}
               >
@@ -374,10 +411,7 @@ export default function Home() {
 
         <View className="flex-row items-center justify-between px-lg mt-lg mb-md">
           <Text className="text-title text-ink">Trending now</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/search")}
-          >
+          <Pressable accessibilityRole="button" onPress={openSearch}>
             <Text className="text-[13px] font-jakarta-bold text-cobalt-500">
               See all
             </Text>
@@ -389,11 +423,7 @@ export default function Home() {
             <Pressable
               key={deal.id}
               accessibilityRole="button"
-              onPress={() =>
-                deal.type === "flight"
-                  ? router.push(`/flight/${deal.refId}`)
-                  : router.push("/search")
-              }
+              onPress={() => openDeal(deal)}
               className="flex-row items-center gap-sm bg-white rounded-md p-md"
               style={CARD_SHADOW}
             >
@@ -412,11 +442,6 @@ export default function Home() {
                 <Text className="text-[14px] font-jakarta-bold text-ink">
                   {deal.price} {deal.currency}
                 </Text>
-                {deal.discountPercent ? (
-                  <Text className="text-[11px] text-go font-jakarta-bold">
-                    -{deal.discountPercent}%
-                  </Text>
-                ) : null}
               </View>
             </Pressable>
           ))}

@@ -149,16 +149,16 @@ Build approach is **Tracer Bullet**: a thin working path from the Search button 
 
 Every task leaves `npx tsc --noEmit` passing.
 
-1. Clean the data, types and every screen that reads them, in one step so nothing breaks in between. Remove `dealBadge`, `previousPrice` and `discountPercent` from the types and data, the `−N%` badges from both Home lists, and the badge and struck through price from Flight detail. Reword the "fare drop" deal title and rename its id. Expand the sample set to about 12 EUR flights covering all six airports, dates as day offsets (20 to 60 days) resolved at load in local dates, satisfies **AC-10**, **AC-11**.
-2. Extend `searchStore` with `anywhere`, `month`, `nights` and `unrecognized`, with the `anywhere` versus `destination` rule inside `setSearchParams`. Write `searchFlights()` with matching, sort, per trip type reason lines and suggestions, satisfies **AC-6**, **AC-7**.
-3. Thin path: a plain `/results` route showing the sorted list with reasons and the "Sample data" label, a Search button on the existing form that writes the store and opens it, and Search close returning to `/`. Add the "Sample data" label to Flight detail, satisfies **AC-6**, **AC-13**.
-4. Add `allowImportingTsExtensions` to `tsconfig.json`. Write `parseSearch()` and `parseSearch.check.ts` covering every row of the parser table, the token use cases and the safety cases. Run it with `node src/lib/parseSearch.check.ts`, satisfies **AC-3**.
-5. Build the missing Search pickers and form rows to the Figma frames (Where and From over `airports.ts`, When with month, dates and nights, Budget), replacing the hotel style local state with the store, satisfies **AC-4**, **AC-5**.
-6. Build `chip.tsx` and the text line on Search: empty, parsed, partly understood and from a deal states, dashed empty chips, Search enabled rule, replace on submit, satisfies **AC-2**, **AC-4**, **AC-5**, **AC-9**.
-7. Add the chips header to `/results` with live editing, and the no results state with verified suggestions, satisfies **AC-7**, **AC-8**.
-8. Home: the entry pill clears the old search and opens Search focused in Flights mode, add the three example prompts, change flight deal taps to open Search with the destination, satisfies **AC-1**, **AC-9**.
-9. Send the six analytics events, satisfies **AC-12**.
-10. Accessibility pass (roles, labels, 44 point targets), then `npm run lint` and a run on the simulator against the Figma frames, satisfies **AC-14** and re checks **AC-1** to **AC-13** end to end.
+1. [x] Clean the data, types and every screen that reads them, in one step so nothing breaks in between. Remove `dealBadge`, `previousPrice` and `discountPercent` from the types and data, the `−N%` badges from both Home lists, and the badge and struck through price from Flight detail. Reword the "fare drop" deal title and rename its id. Expand the sample set to about 12 EUR flights covering all six airports, dates as day offsets (20 to 60 days) resolved at load in local dates, satisfies **AC-10**, **AC-11**.
+2. [x] Extend `searchStore` with `anywhere`, `month`, `nights` and `unrecognized`, with the `anywhere` versus `destination` rule inside `setSearchParams`. Write `searchFlights()` with matching, sort, per trip type reason lines and suggestions, satisfies **AC-6**, **AC-7**.
+3. [x] Thin path: a plain `/results` route showing the sorted list with reasons and the "Sample data" label, a Search button on the existing form that writes the store and opens it, and Search close returning to `/`. Add the "Sample data" label to Flight detail, satisfies **AC-6**, **AC-13**.
+4. [x] Add `allowImportingTsExtensions` to `tsconfig.json`. Write `parseSearch()` and `parseSearch.check.ts` covering every row of the parser table, the token use cases and the safety cases. Run it with `node src/lib/parseSearch.check.ts`, satisfies **AC-3**.
+5. [x] Build the missing Search pickers and form rows to the Figma frames (Where and From over `airports.ts`, When with month, dates and nights, Budget), replacing the hotel style local state with the store, satisfies **AC-4**, **AC-5**.
+6. [x] Build `chip.tsx` and the text line on Search: empty, parsed, partly understood and from a deal states, dashed empty chips, Search enabled rule, replace on submit, satisfies **AC-2**, **AC-4**, **AC-5**, **AC-9**.
+7. [x] Add the chips header to `/results` with live editing, and the no results state with verified suggestions, satisfies **AC-7**, **AC-8**.
+8. [x] Home: the entry pill clears the old search and opens Search focused in Flights mode, add the three example prompts, change flight deal taps to open Search with the destination, satisfies **AC-1**, **AC-9**.
+9. [x] Send the six analytics events, satisfies **AC-12**.
+10. [x] Accessibility pass (roles, labels, 44 point targets), then `npm run lint` and a run on the simulator against the Figma frames, satisfies **AC-14** and re checks **AC-1** to **AC-13** end to end.
 
 ## Consequences
 
